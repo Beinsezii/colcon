@@ -7,6 +7,9 @@ edition = "2021"
 
 [dependencies]
 
+[features]
+D50 = []
+
 [profile.release]
 lto = true
 opt-level = 3
