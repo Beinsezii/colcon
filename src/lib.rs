@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
 // 'Standard' Illuminant D65
