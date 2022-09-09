@@ -1,10 +1,10 @@
 #![warn(missing_docs)]
 
-//! Simple colorspace conversions in Rust
+//! Simple colorspace conversions in pure Rust.
 //!
-//! All conversions are in-place, except when converting to/from integer and hexadecimal
+//! All conversions are in-place, except when converting to/from integer and hexadecimal.
 //! Formulas are generally taken from Wikipedia with correctness verified against both
-//! https://www.easyrgb.com and BABL.
+//! <https://www.easyrgb.com> and BABL.
 //!
 //! Currently, everything seems to check out except CIE XYZ.
 //! The Wikipedia formula matches EasyRGB, but BABL uses something different.
@@ -13,7 +13,7 @@
 //! The feature flag `D50` changes this to Illuminant D50,
 //! used by BABL (GIMP) and possibly other programs.
 //! Specifically, this feature flag changes which white reference the ILLUMINANT
-//! constant is set to
+//! constant is set to.
 
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
@@ -21,7 +21,7 @@ const D65_X: f32 = 0.950489;
 const D65_Y: f32 = 1.000000;
 const D65_Z: f32 = 1.088840;
 
-/// 'Standard' Illuminant D65
+/// 'Standard' Illuminant D65.
 #[allow(unused)]
 const D65: [f32; 3] = [D65_X, D65_Y, D65_Z];
 
@@ -30,7 +30,7 @@ const D50_Y: f32 = 1.000000;
 const D50_Z: f32 = 0.825188;
 
 /// Illuminant D50, aka "printing" illuminant.
-/// Used by BABL/GIMP + others over D65, not sure why
+/// Used by BABL/GIMP + others over D65, not sure why.
 #[allow(unused)]
 const D50: [f32; 3] = [D50_X, D50_Y, D50_Z];
 
@@ -54,10 +54,10 @@ pub enum Space {
     /// Not sure which is most correct...
     XYZ,
     /// CIE LAB (Lightness a/b).
-    /// Calculated in illuminant D65 unless the `D50` features flag is passed
+    /// Calculated in illuminant D65 unless the `D50` features flag is passed.
     LAB,
-    /// CIE LCh (Lightness Chroma Hue)
-    /// Cylindrical version of CIE LAB
+    /// CIE LCh (Lightness Chroma Hue).
+    /// Cylindrical version of CIE LAB.
     LCH,
 }
 
@@ -91,7 +91,7 @@ impl TryFrom<&str> for Space {
 
 #[rustfmt::skip]
 /// Runs conversion functions to convert `pixel` from one `Space` to another
-/// in the least possible moves
+/// in the least possible moves.
 pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
     match (from, to) {
         // No-op
@@ -137,7 +137,7 @@ pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
 }
 
 /// Same as `convert_space`, ignores the 4th value in `pixel`.
-/// Just a convenience function
+/// Just a convenience function.
 pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
     unsafe {
         convert_space(
@@ -150,9 +150,9 @@ pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
 
 // UP {{{
 
-/// Convert floating (0.0..1.0) RGB to integer (0..255) RGB
-/// Simply clips values > 1.0 && < 0.0
-/// Not really RGB specific, but other formats typically aren't represented as integers
+/// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
+/// Simply clips values > 1.0 && < 0.0.
+/// Not RGB specific, but other formats typically aren't represented as integers.
 pub fn srgb_to_irgb(pixel: [f32; 3]) -> [u8; 3] {
     [
         ((pixel[0] * 255.0).max(0.0).min(255.0) as u8),
@@ -161,8 +161,8 @@ pub fn srgb_to_irgb(pixel: [f32; 3]) -> [u8; 3] {
     ]
 }
 
-/// Create a hexadecimal string from integer RGB
-/// Not really RGB specific, but other formats typically aren't represented as hexadecimal
+/// Create a hexadecimal string from integer RGB.
+/// Not RGB specific, but other formats typically aren't represented as hexadecimal.
 pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
     let mut hex = String::from("#");
 
@@ -175,7 +175,7 @@ pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
     hex
 }
 
-/// Convert from sRGB to HSV
+/// Convert from sRGB to HSV.
 pub fn srgb_to_hsv(pixel: &mut [f32; 3]) {
     let vmin = pixel[0].min(pixel[1]).min(pixel[2]);
     let vmax = pixel[0].max(pixel[1]).max(pixel[2]);
@@ -210,8 +210,8 @@ pub fn srgb_to_hsv(pixel: &mut [f32; 3]) {
     *pixel = [h, s, v];
 }
 
-/// Convert from sRGB to Linear Light RGB
-/// https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ
+/// Convert from sRGB to Linear Light RGB.
+/// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
 pub fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
     pixel.iter_mut().for_each(|c| {
         if *c <= 0.04045 {
@@ -222,8 +222,8 @@ pub fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
     });
 }
 
-/// Convert from Linear Light RGB to CIE XYZ
-/// https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ
+/// Convert from Linear Light RGB to CIE XYZ.
+/// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
 pub fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
     *pixel = [
         (0.4124 * pixel[0] + 0.3576 * pixel[1] + 0.1805 * pixel[2]), // X
@@ -232,8 +232,8 @@ pub fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
     ]
 }
 
-/// Convert from CIE XYZ to CIE LAB
-/// https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB
+/// Convert from CIE XYZ to CIE LAB.
+/// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
 pub fn xyz_to_lab(pixel: &mut [f32; 3]) {
     pixel.iter_mut().zip(ILLUMINANT).for_each(|(c, d)| *c /= d);
 
@@ -252,8 +252,8 @@ pub fn xyz_to_lab(pixel: &mut [f32; 3]) {
     ]
 }
 
-/// Convert from CIE LAB to CIE LCH
-/// https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model
+/// Convert from CIE LAB to CIE LCH.
+/// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 pub fn lab_to_lch(pixel: &mut [f32; 3]) {
     *pixel = [
         pixel[0],
@@ -266,8 +266,8 @@ pub fn lab_to_lch(pixel: &mut [f32; 3]) {
 
 // DOWN {{{
 
-/// Convert integer (0..255) RGB to floating (0.0..1.0) RGB
-/// Not really RGB specific, but other formats typically aren't represented as integers
+/// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
+/// Not RGB specific, but other formats typically aren't represented as integers.
 pub fn irgb_to_srgb(pixel: [u8; 3]) -> [f32; 3] {
     [
         pixel[0] as f32 / 255.0,
@@ -276,8 +276,8 @@ pub fn irgb_to_srgb(pixel: [u8; 3]) -> [f32; 3] {
     ]
 }
 
-/// Create integer RGB set from hex string
-/// Not really RGB specific, but other formats typically aren't represented as hexadecimal
+/// Create integer RGB set from hex string.
+/// Not RGB specific, but other formats typically aren't represented as hexadecimal.
 pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
     let hex = hex.trim().to_ascii_uppercase();
 
@@ -310,7 +310,7 @@ pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
     ])
 }
 
-/// Convert from HSV to sRGB
+/// Convert from HSV to sRGB.
 pub fn hsv_to_srgb(pixel: &mut [f32; 3]) {
     if pixel[1] == 0.0 {
         *pixel = [pixel[2]; 3];
@@ -340,8 +340,8 @@ pub fn hsv_to_srgb(pixel: &mut [f32; 3]) {
     }
 }
 
-/// Convert from Linear Light RGB to sRGB
-/// https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB
+/// Convert from Linear Light RGB to sRGB.
+/// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 pub fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
     pixel.iter_mut().for_each(|c| {
         if *c <= 0.0031308 {
@@ -352,8 +352,8 @@ pub fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
     });
 }
 
-/// Convert from CIE XYZ to Linear Light RGB
-/// https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB
+/// Convert from CIE XYZ to Linear Light RGB.
+/// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 pub fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
     *pixel = [
         3.2406 * pixel[0] - 1.5372 * pixel[1] - 0.4986 * pixel[2],
@@ -362,8 +362,8 @@ pub fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
     ];
 }
 
-/// Convert from CIE LAB to CIE XYZ
-/// https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ
+/// Convert from CIE LAB to CIE XYZ.
+/// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
 pub fn lab_to_xyz(pixel: &mut [f32; 3]) {
     *pixel = [
         (pixel[0] + 16.0) / 116.0 + pixel[1] / 500.0,
@@ -382,8 +382,8 @@ pub fn lab_to_xyz(pixel: &mut [f32; 3]) {
     pixel.iter_mut().zip(ILLUMINANT).for_each(|(c, d)| *c *= d);
 }
 
-/// Convert from CIE LCH to CIE LAB
-/// https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model
+/// Convert from CIE LCH to CIE LAB.
+/// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 pub fn lch_to_lab(pixel: &mut [f32; 3]) {
     *pixel = [
         pixel[0],
@@ -399,7 +399,7 @@ pub fn lch_to_lab(pixel: &mut [f32; 3]) {
 mod tests {
     use super::*;
 
-    // taken from https://easyrgb.com
+    // taken from <https://easyrgb.com>
     // const RGB: [f32; 3] = [0.2000, 0.3500, 0.9500];
     // const HSV: [f32; 3] = [0.6333, 0.7894, 0.9500];
     // const XYZ: [f32; 3] = [21.017, 14.314, 85.839];
