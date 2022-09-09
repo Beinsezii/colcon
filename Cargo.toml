@@ -2,6 +2,14 @@
 name = "colcon"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Simple colorspace conversions in Rust."
+repository = "https://github.com/Beinsezii/colcon"
+readme = "README.md"
+categories = ["graphics", "algorithms"]
+keywords = ["color", "conversion", "colorspace", "convert"]
+
+publish = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
