@@ -300,7 +300,7 @@ pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
             })
             .collect()
     } else {
-        Err(String::from("Hex string too long!"))
+        Err(String::from("Incorrect hex length!"))
     }?;
 
     Ok([
