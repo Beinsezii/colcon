@@ -9,11 +9,10 @@
 //! Currently, everything seems to check out except CIE XYZ.
 //! The Wikipedia formula matches EasyRGB, but BABL uses something different.
 //!
-//! This crate assumes Standard Illuminant D65 when converting to/from the CIE colorspace.
+//! This crate references Standard Illuminant D65
+//! when converting to/from the CIE colorspace.
 //! The feature flag `D50` changes this to Illuminant D50,
 //! used by BABL (GIMP) and possibly other programs.
-//! Specifically, this feature flag changes which white reference the ILLUMINANT
-//! constant is set to.
 
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
@@ -22,8 +21,7 @@ const D65_Y: f32 = 1.000000;
 const D65_Z: f32 = 1.088840;
 
 /// 'Standard' Illuminant D65.
-#[allow(unused)]
-const D65: [f32; 3] = [D65_X, D65_Y, D65_Z];
+pub const D65: [f32; 3] = [D65_X, D65_Y, D65_Z];
 
 const D50_X: f32 = 0.964212;
 const D50_Y: f32 = 1.000000;
@@ -31,8 +29,7 @@ const D50_Z: f32 = 0.825188;
 
 /// Illuminant D50, aka "printing" illuminant.
 /// Used by BABL/GIMP + others over D65, not sure why.
-#[allow(unused)]
-const D50: [f32; 3] = [D50_X, D50_Y, D50_Z];
+pub const D50: [f32; 3] = [D50_X, D50_Y, D50_Z];
 
 #[cfg(feature = "D50")]
 const ILLUMINANT: [f32; 3] = D50;
@@ -192,19 +189,14 @@ pub fn srgb_to_hsv(pixel: &mut [f32; 3]) {
         let dg = (((vmax - pixel[1]) / 6.0) + (dmax / 2.0)) / dmax;
         let db = (((vmax - pixel[2]) / 6.0) + (dmax / 2.0)) / dmax;
 
-        let mut h = if pixel[0] == vmax {
+        let h = if pixel[0] == vmax {
             db - dg
         } else if pixel[1] == vmax {
             (1.0 / 3.0) + dr - db
         } else {
             (2.0 / 3.0) + dg - dr
-        };
-
-        if h < 0.0 {
-            h += 1.0
-        } else if h > 1.0 {
-            h -= 1.0
-        };
+        }
+        .rem_euclid(1.0);
         (h, s)
     };
     *pixel = [h, s, v];
@@ -258,7 +250,7 @@ pub fn lab_to_lch(pixel: &mut [f32; 3]) {
     *pixel = [
         pixel[0],
         (pixel[1].powi(2) + pixel[2].powi(2)).sqrt(),
-        pixel[2].atan2(pixel[1]).to_degrees(),
+        pixel[2].atan2(pixel[1]).to_degrees().rem_euclid(360.0),
     ];
 }
 
@@ -399,66 +391,36 @@ pub fn lch_to_lab(pixel: &mut [f32; 3]) {
 mod tests {
     use super::*;
 
-    // taken from <https://easyrgb.com>
-    // const RGB: [f32; 3] = [0.2000, 0.3500, 0.9500];
-    // const HSV: [f32; 3] = [0.6333, 0.7894, 0.9500];
-    // const XYZ: [f32; 3] = [21.017, 14.314, 85.839];
-    // const LAB: [f32; 3] = [44.679, 40.806, -80.139];
-    // const LCH: [f32; 3] = [44.679, 89.930, 296.985];
-
-    // Taken from BABL, which I honestly trust more
     const HEX: &str = "#3359F2";
     const IRGB: [u8; 3] = [51, 89, 242];
     const SRGB: [f32; 3] = [0.200000, 0.350000, 0.950000];
     const LRGB: [f32; 3] = [0.033105, 0.100482, 0.890006];
-    const HSV: [f32; 3] = [0.633333, 0.789474, 0.950000];
-    // interestingly, XYZ fails horrendously.
-    // EasyRGB and BABL must use totally different formulae
-    // EasyRGB's looks to be the same as Wikipedia, which is what I use.
-    // BABL's is different and I'm not sure where it's sourced from...
-    //
-    //
-    // #define LAB_EPSILON       (216.0f / 24389.0f)
-    // #define LAB_KAPPA         (24389.0f / 27.0f)
-    //
-    // #define D50_WHITE_REF_X   0.964202880f
-    // #define D50_WHITE_REF_Y   1.000000000f
-    // #define D50_WHITE_REF_Z   0.824905400f
-    // static inline void
-    // XYZ_to_LAB (double X,
-    //             double Y,
-    //             double Z,
-    //             double *to_L,
-    //             double *to_a,
-    //             double *to_b)
-    // {
-    //   double f_x, f_y, f_z;
 
-    //   double x_r = X / D50_WHITE_REF_X;
-    //   double y_r = Y / D50_WHITE_REF_Y;
-    //   double z_r = Z / D50_WHITE_REF_Z;
+    // For both BABL and EasyRGB the decimals are off at the thousandths.
+    // BABL at least works in f32 im pretty sure, though I also think it transitions by
+    // reducing to LRGB as a common denominator before working back up, so maybe the rounding
+    // errors happen in there as colcon will go XYZ -> LAB directly
 
-    //   if (x_r > LAB_EPSILON) f_x = pow(x_r, 1.0 / 3.0);
-    //   else ( f_x = ((LAB_KAPPA * x_r) + 16) / 116.0 );
+    // taken from <https://easyrgb.com>
+    // Runs @ D65
+    // Their XYZ is normalized 0-100 while BABL and I believe wikipedia
+    // is 0-1 so I've adjusted the decimals.
 
-    //   if (y_r > LAB_EPSILON) f_y = pow(y_r, 1.0 / 3.0);
-    //   else ( f_y = ((LAB_KAPPA * y_r) + 16) / 116.0 );
+    const HSV: [f32; 3] = [0.6333, 0.7894, 0.9500];
+    const XYZ: [f32; 3] = [0.21017, 0.14314, 0.85839];
+    const LAB: [f32; 3] = [44.679, 40.806, -80.139];
+    const LCH: [f32; 3] = [44.679, 89.930, 296.985];
 
-    //   if (z_r > LAB_EPSILON) f_z = pow(z_r, 1.0 / 3.0);
-    //   else ( f_z = ((LAB_KAPPA * z_r) + 16) / 116.0 );
+    // Taken from BABL, which I honestly trust more
+    // Runs @ D50 so needs to be tested with that
+    // TODO: their XYZ implementation is different wikipedia/easyrgb...
+    // I should probably at least add a feature flag to change it
+    // <https://gitlab.gnome.org/GNOME/babl/-/blob/master/babl/babl-space.c>
+    // const HSV: [f32; 3] = [0.633333, 0.789474, 0.950000];
 
-    //   *to_L = (116.0 * f_y) - 16.0;
-    //   *to_a = 500.0 * (f_x - f_y);
-    //   *to_b = 200.0 * (f_y - f_z);
-    // }
-    //
-    const XYZ: [f32; 3] = [0.180448, 0.133343, 0.645614];
-    // Off after 2 decimals. Weird.
-    const LAB: [f32; 3] = [43.262680, 30.556679, -82.134712];
-    // Mine doesn't wrap hue.
-    // Doesn't seem to matter except in tests so let's fudge it.
+    // const XYZ: [f32; 3] = [0.180448, 0.133343, 0.645614];
+    // const LAB: [f32; 3] = [43.262680, 30.556679, -82.134712];
     // const LCH: [f32; 3] = [43.262680, 87.634590, 290.406769];
-    const LCH: [f32; 3] = [43.262680, 87.634590, 290.406769 - 360.0];
 
     fn pixcmp(a: [f32; 3], b: [f32; 3]) {
         assert_eq!(
@@ -567,7 +529,8 @@ mod tests {
     #[test]
     fn irgb_from() {
         let mut srgb = irgb_to_srgb(IRGB);
-        srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
+        srgb.iter_mut()
+            .for_each(|c| *c = (*c * 100.0).round() / 100.0);
         assert_eq!(SRGB, srgb)
     }
 
@@ -579,6 +542,28 @@ mod tests {
     #[test]
     fn hex_from() {
         assert_eq!(IRGB, hex_to_irgb(HEX).unwrap())
+    }
+
+    #[test]
+    fn hue_wrap() {
+        let it = (-1000..=2000).step_by(50);
+        for a in it.clone() {
+            for b in it.clone() {
+                for c in it.clone() {
+                    let (a, b, c) = (a as f32 / 10.0, b as f32 / 10.0, c as f32 / 10.0);
+                    // lch
+                    let mut pixel = [a as f32, b as f32, c as f32];
+                    convert_space(Space::SRGB, Space::LCH, &mut pixel);
+                    assert!(pixel[2] <= 360.0, "lch H was {}", pixel[2]);
+                    assert!(pixel[2] >= 0.0, "lch H was {}", pixel[2]);
+                    // hsv
+                    let mut pixel = [a as f32, b as f32, c as f32];
+                    convert_space(Space::SRGB, Space::HSV, &mut pixel);
+                    assert!(pixel[0] <= 1.0, "hsv H was {}", pixel[0]);
+                    assert!(pixel[0] >= 0.0, "hsv H was {}", pixel[0]);
+                }
+            }
+        }
     }
 }
 // TESTS }}}
