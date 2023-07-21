@@ -1,12 +1,13 @@
-# ColCon 0.1.1
+# ColCon 0.2.0
 Simple colorspace conversions in Rust.
 
 ## Features
   * Pure Rust, no dependencies.
   * Mostly accurate kinda
 
-## WIP/Why this isn't 1.0 yet
+## Goals for 1.0
   * Figure out the XYZ situation with BABL vs Wikipedia/EasyRGB
+    * or at least add it as a feature flag
 
 ## F.A.Q.
 Question|Answer
