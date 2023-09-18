@@ -86,6 +86,26 @@ impl TryFrom<&str> for Space {
     }
 }
 
+/// Expand gamma of a single value to linear light
+#[inline]
+pub fn expand_gamma(n: f32) -> f32 {
+    if n <= 0.04045 {
+        n / 12.92
+    } else {
+        ((n + 0.055) / 1.055_f32).powf(2.4)
+    }
+}
+
+/// Gamma corrects a single linear light value
+#[inline]
+pub fn correct_gamma(n: f32) -> f32 {
+    if n <= 0.0031308 {
+        n * 12.92
+    } else {
+        1.055 * (n.powf(1.0 / 2.4)) - 0.055
+    }
+}
+
 #[rustfmt::skip]
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
@@ -205,13 +225,7 @@ pub fn srgb_to_hsv(pixel: &mut [f32; 3]) {
 /// Convert from sRGB to Linear Light RGB.
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
 pub fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
-    pixel.iter_mut().for_each(|c| {
-        if *c <= 0.04045 {
-            *c /= 12.92
-        } else {
-            *c = ((*c + 0.055) / 1.055_f32).powf(2.4)
-        }
-    });
+    pixel.iter_mut().for_each(|c| *c = expand_gamma(*c));
 }
 
 /// Convert from Linear Light RGB to CIE XYZ.
@@ -335,13 +349,7 @@ pub fn hsv_to_srgb(pixel: &mut [f32; 3]) {
 /// Convert from Linear Light RGB to sRGB.
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 pub fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
-    pixel.iter_mut().for_each(|c| {
-        if *c <= 0.0031308 {
-            *c *= 12.92
-        } else {
-            *c = 1.055 * (c.powf(1.0 / 2.4)) - 0.055
-        }
-    });
+    pixel.iter_mut().for_each(|c| *c = correct_gamma(*c) );
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.

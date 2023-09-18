@@ -1,6 +1,6 @@
 [package]
 name = "colcon"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "MIT"
 description = "Simple colorspace conversions in Rust."
@@ -15,6 +15,17 @@ publish = true
 
 [dependencies]
 
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "conversions"
+harness = false
+
+# TODO export C fns
+#[lib]
+#crate-type = ["lib", "cdylib"]
+
 [features]
 D50 = []
 
@@ -23,3 +34,8 @@ lto = true
 opt-level = 3
 codegen-units = 1
 strip = true
+
+[profile.bench]
+lto = true
+opt-level = 3
+codegen-units = 1
