@@ -1,4 +1,4 @@
-# ColCon 0.2.1
+# ColCon 0.2.2
 Simple colorspace conversions in Rust.
 
 ## Features
