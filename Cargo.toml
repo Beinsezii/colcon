@@ -19,7 +19,11 @@ publish = true
 criterion = "0.5"
 
 [[example]]
-name = "hk"
+name = "hk_data"
+[[examples]]
+name = "hk_palette"
+[[examples]]
+name = "hk_texture"
 
 [[bench]]
 name = "conversions"

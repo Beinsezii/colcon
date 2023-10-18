@@ -6,6 +6,9 @@
 //! Formulas are generally taken from Wikipedia with correctness verified against both
 //! <https://www.easyrgb.com> and BABL.
 //!
+//! Helmholtz-Kohlrausch compensation formulae sourced from
+//! <https://onlinelibrary.wiley.com/doi/10.1002/col.22839>
+//!
 //! Currently, everything seems to check out except CIE XYZ.
 //! The Wikipedia formula matches EasyRGB, but BABL uses something different.
 //!
@@ -36,6 +39,60 @@ const ILLUMINANT: [f32; 3] = D50;
 
 #[cfg(not(feature = "D50"))]
 const ILLUMINANT: [f32; 3] = D65;
+
+/// Expand gamma of a single value to linear light
+#[inline]
+pub fn expand_gamma(n: f32) -> f32 {
+    if n <= 0.04045 {
+        n / 12.92
+    } else {
+        ((n + 0.055) / 1.055_f32).powf(2.4)
+    }
+}
+
+/// Gamma corrects a single linear light value
+#[inline]
+pub fn correct_gamma(n: f32) -> f32 {
+    if n <= 0.0031308 {
+        n * 12.92
+    } else {
+        1.055 * (n.powf(1.0 / 2.4)) - 0.055
+    }
+}
+
+/// Extended K-values from High et al 2021/2022
+const K_HIGH2022: [f32; 4] = [0.1644, 0.0603, 0.1307, 0.0060];
+
+/// Mean value of the HK delta, High et al 2023 implementation.
+/// Measured with 36000 steps in the hk_exmample file @ 100 C(ab)
+/// Cannot make a const fn: https://github.com/rust-lang/rust/issues/57241
+pub const HIGH2023_MEAN: f32 = 20.956442;
+
+#[inline]
+fn hk_2023_fby(h: f32) -> f32 {
+    K_HIGH2022[0] * ((h - 90.0) / 2.0).to_radians().sin().abs() + K_HIGH2022[1]
+}
+
+#[inline]
+fn hk_2023_fr(h: f32) -> f32 {
+    if h <= 90.0 || h >= 270.0 {
+        K_HIGH2022[2] * h.to_radians().cos().abs() + K_HIGH2022[3]
+    } else {
+        0.0
+    }
+}
+
+/// Returns difference in perceptual lightness based on hue, aka the Helmholtz-Kohlrausch effect.
+/// High et al 2023 implementation.
+pub fn hk_delta_2023(lch: [f32; 3]) -> f32 {
+    (hk_2023_fby(lch[2]) + hk_2023_fr(lch[2])) * lch[1]
+}
+
+/// Compensates LCH's L value for the Helmholtz-Kohlrausch effect.
+/// High et al 2023 implementation.
+pub fn hk_comp_2023(lch: &mut [f32; 3]) {
+    lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_delta_2023(*lch)
+}
 
 /// Defines colorspace pixels will take.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -83,26 +140,6 @@ impl TryFrom<&str> for Space {
             "lch" | "lcha" => Ok(Space::LCH),
             _ => Err(()),
         }
-    }
-}
-
-/// Expand gamma of a single value to linear light
-#[inline]
-pub fn expand_gamma(n: f32) -> f32 {
-    if n <= 0.04045 {
-        n / 12.92
-    } else {
-        ((n + 0.055) / 1.055_f32).powf(2.4)
-    }
-}
-
-/// Gamma corrects a single linear light value
-#[inline]
-pub fn correct_gamma(n: f32) -> f32 {
-    if n <= 0.0031308 {
-        n * 12.92
-    } else {
-        1.055 * (n.powf(1.0 / 2.4)) - 0.055
     }
 }
 
@@ -349,7 +386,7 @@ pub fn hsv_to_srgb(pixel: &mut [f32; 3]) {
 /// Convert from Linear Light RGB to sRGB.
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 pub fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
-    pixel.iter_mut().for_each(|c| *c = correct_gamma(*c) );
+    pixel.iter_mut().for_each(|c| *c = correct_gamma(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
