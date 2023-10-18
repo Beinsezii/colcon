@@ -18,6 +18,9 @@ publish = true
 [dev-dependencies]
 criterion = "0.5"
 
+[[example]]
+name = "hk"
+
 [[bench]]
 name = "conversions"
 harness = false
