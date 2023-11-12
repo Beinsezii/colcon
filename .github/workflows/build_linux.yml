@@ -1,5 +1,5 @@
+name: Build Linux Release
 on: [push]
-
 jobs:
   build:
     runs-on: ubuntu-latest
