@@ -64,6 +64,14 @@ pub fn conversions(c: &mut Criterion) {
         black_box(pixels.clone().iter_mut().for_each(|n| *n = correct_gamma(*n)));
     } ));
 
+    c.bench_function("full_to", |b| b.iter(|| {
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::SRGB, Space::LCH, pixel.try_into().unwrap())));
+    } ));
+
+    c.bench_function("full_from", |b| b.iter(|| {
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LCH, Space::SRGB, pixel.try_into().unwrap())));
+    } ));
+
 }
 
 criterion_group!(benches, conversions);
