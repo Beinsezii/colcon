@@ -1,0 +1,15 @@
+name: Build Macos Release
+on: [push]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build release
+        run: cargo build --release
+        run: ls target/release/
+#      - name: Upload artifact
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: dylib
+#          path: target/release/libcolcon.so
