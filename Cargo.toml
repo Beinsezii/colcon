@@ -1,6 +1,6 @@
 [package]
 name = "colcon"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 description = "Simple colorspace conversions in Rust."
@@ -29,9 +29,8 @@ name = "hk_texture"
 name = "conversions"
 harness = false
 
-# TODO export C fns
-#[lib]
-#crate-type = ["lib", "cdylib"]
+[lib]
+crate-type = ["lib", "cdylib"]
 
 [features]
 D50 = []

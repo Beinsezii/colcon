@@ -42,7 +42,8 @@ const ILLUMINANT: [f32; 3] = D65;
 
 /// Expand gamma of a single value to linear light
 #[inline]
-pub fn expand_gamma(n: f32) -> f32 {
+#[no_mangle]
+pub extern "C" fn expand_gamma(n: f32) -> f32 {
     if n <= 0.04045 {
         n / 12.92
     } else {
@@ -52,7 +53,8 @@ pub fn expand_gamma(n: f32) -> f32 {
 
 /// Gamma corrects a single linear light value
 #[inline]
-pub fn correct_gamma(n: f32) -> f32 {
+#[no_mangle]
+pub extern "C" fn correct_gamma(n: f32) -> f32 {
     if n <= 0.0031308 {
         n * 12.92
     } else {
@@ -84,14 +86,16 @@ fn hk_2023_fr(h: f32) -> f32 {
 
 /// Returns difference in perceptual lightness based on hue, aka the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-pub fn hk_delta_2023(lch: [f32; 3]) -> f32 {
+#[no_mangle]
+pub extern "C" fn hk_delta_2023(lch: &[f32; 3]) -> f32 {
     (hk_2023_fby(lch[2]) + hk_2023_fr(lch[2])) * lch[1]
 }
 
 /// Compensates LCH's L value for the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-pub fn hk_comp_2023(lch: &mut [f32; 3]) {
-    lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_delta_2023(*lch)
+#[no_mangle]
+pub extern "C" fn hk_comp_2023(lch: &mut [f32; 3]) {
+    lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_delta_2023(lch)
 }
 
 /// Defines colorspace pixels will take.
@@ -230,7 +234,8 @@ pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
 }
 
 /// Convert from sRGB to HSV.
-pub fn srgb_to_hsv(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn srgb_to_hsv(pixel: &mut [f32; 3]) {
     let vmin = pixel[0].min(pixel[1]).min(pixel[2]);
     let vmax = pixel[0].max(pixel[1]).max(pixel[2]);
     let dmax = vmax - vmin;
@@ -261,13 +266,15 @@ pub fn srgb_to_hsv(pixel: &mut [f32; 3]) {
 
 /// Convert from sRGB to Linear Light RGB.
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-pub fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
     pixel.iter_mut().for_each(|c| *c = expand_gamma(*c));
 }
 
 /// Convert from Linear Light RGB to CIE XYZ.
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-pub fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
     *pixel = [
         (0.4124 * pixel[0] + 0.3576 * pixel[1] + 0.1805 * pixel[2]), // X
         (0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2]), // Y
@@ -277,7 +284,8 @@ pub fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
 
 /// Convert from CIE XYZ to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
-pub fn xyz_to_lab(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
     pixel.iter_mut().zip(ILLUMINANT).for_each(|(c, d)| *c /= d);
 
     pixel.iter_mut().for_each(|c| {
@@ -297,7 +305,8 @@ pub fn xyz_to_lab(pixel: &mut [f32; 3]) {
 
 /// Convert from CIE LAB to CIE LCH.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-pub fn lab_to_lch(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
     *pixel = [
         pixel[0],
         (pixel[1].powi(2) + pixel[2].powi(2)).sqrt(),
@@ -354,7 +363,8 @@ pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
 }
 
 /// Convert from HSV to sRGB.
-pub fn hsv_to_srgb(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn hsv_to_srgb(pixel: &mut [f32; 3]) {
     if pixel[1] == 0.0 {
         *pixel = [pixel[2]; 3];
     } else {
@@ -385,13 +395,15 @@ pub fn hsv_to_srgb(pixel: &mut [f32; 3]) {
 
 /// Convert from Linear Light RGB to sRGB.
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
-pub fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
     pixel.iter_mut().for_each(|c| *c = correct_gamma(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
-pub fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
     *pixel = [
         3.2406 * pixel[0] - 1.5372 * pixel[1] - 0.4986 * pixel[2],
         -0.9689 * pixel[0] + 1.8758 * pixel[1] + 0.0415 * pixel[2],
@@ -401,7 +413,8 @@ pub fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
 
 /// Convert from CIE LAB to CIE XYZ.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
-pub fn lab_to_xyz(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn lab_to_xyz(pixel: &mut [f32; 3]) {
     *pixel = [
         (pixel[0] + 16.0) / 116.0 + pixel[1] / 500.0,
         (pixel[0] + 16.0) / 116.0,
@@ -421,7 +434,8 @@ pub fn lab_to_xyz(pixel: &mut [f32; 3]) {
 
 /// Convert from CIE LCH to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-pub fn lch_to_lab(pixel: &mut [f32; 3]) {
+#[no_mangle]
+pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
     *pixel = [
         pixel[0],
         pixel[1] * pixel[2].to_radians().cos(),
