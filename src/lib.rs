@@ -152,57 +152,50 @@ impl PartialOrd for Space {
     }
 }
 
-
-fn graph(mut from: Space, to: Space) -> Vec<extern "C" fn(&mut [f32; 3])> {
-    let mut result: Vec<extern "C" fn(&mut [f32; 3])> = Vec::with_capacity(6 * 2);
-    loop {
-        if from > to {
-            match from {
-                Space::SRGB => unreachable!(),
-                Space::HSV => {result.push(hsv_to_srgb); break},
-                Space::LRGB => {result.push(lrgb_to_srgb); break},
-                Space::XYZ => {result.push(xyz_to_lrgb); from = Space::LRGB},
-                Space::LAB => {result.push(lab_to_xyz); from = Space::XYZ},
-                Space::LCH => {result.push(lch_to_lab); from = Space::LAB},
-            }
-        } else if from < to {
-            match from {
-                // Endcaps
-                Space::LCH => unreachable!(),
-                Space::HSV => unreachable!(),
-
-                Space::SRGB => match to {
-                    Space::HSV => {result.push(srgb_to_hsv); break},
-                    _ => {result.push(srgb_to_lrgb); from = Space::LRGB}
-                }
-                Space::LRGB => {result.push(lrgb_to_xyz); from = Space::XYZ},
-                Space::XYZ => {result.push(xyz_to_lab); from = Space::LAB},
-                Space::LAB => {result.push(lab_to_lch); break},
-            }
-        } else {
-            break
-        }
-    }
-    result
-}
-
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
 pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
-   graph(from, to).into_iter().for_each(|f| f(pixel))
+    let mut pixels = [*pixel];
+    convert_space_chunked(from, to, &mut pixels);
+    *pixel = pixels[0]
 }
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves. Caches conversion graph for faster iteration.
 pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
-    graph(from, to).into_iter().for_each(|f| pixels.iter_mut().for_each(|pixel| f(pixel)))
+    if from > to {
+        match from {
+            Space::SRGB => unreachable!(),
+            Space::HSV => pixels.iter_mut().for_each(|pixel| hsv_to_srgb(pixel)),
+            Space::LRGB => pixels.iter_mut().for_each(|pixel| lrgb_to_srgb(pixel)),
+            Space::XYZ => {pixels.iter_mut().for_each(|pixel| xyz_to_lrgb(pixel)); convert_space_chunked(Space::LRGB, to, pixels)},
+            Space::LAB => {pixels.iter_mut().for_each(|pixel| lab_to_xyz(pixel)); convert_space_chunked(Space::XYZ, to, pixels)},
+            Space::LCH => {pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel)); convert_space_chunked(Space::LAB, to, pixels)},
+        }
+    } else if from < to {
+        match from {
+            // Endcaps
+            Space::LCH => unreachable!(),
+            Space::HSV => unreachable!(),
+
+            Space::SRGB => match to {
+                Space::HSV => pixels.iter_mut().for_each(|pixel| srgb_to_hsv(pixel)),
+                _ => {pixels.iter_mut().for_each(|pixel| srgb_to_lrgb(pixel)); convert_space_chunked(Space::LRGB, to, pixels)}
+            }
+            Space::LRGB => {pixels.iter_mut().for_each(|pixel| lrgb_to_xyz(pixel)); convert_space_chunked(Space::XYZ, to, pixels)},
+            Space::XYZ => {pixels.iter_mut().for_each(|pixel| xyz_to_lab(pixel)); convert_space_chunked(Space::LAB, to, pixels)},
+            Space::LAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
+        }
+    }
 }
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves. Caches conversion graph for faster iteration.
-/// Ignores remainder values in slice
+/// Ignores remainder values in slice.
 pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
-    graph(from, to).into_iter().for_each(|f| pixels.chunks_exact_mut(3).for_each(|pixel| f(pixel.try_into().unwrap())))
+    // How long has this been in unstable...
+    // convert_space_chunked(from, to, pixels.as_chunks_mut::<3>().0);
+    pixels.chunks_exact_mut(3).for_each(|pixel| convert_space(from, to, pixel.try_into().unwrap()));
 }
 
 /// Same as `convert_space`, ignores the 4th value in `pixel`.
