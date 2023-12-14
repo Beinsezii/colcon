@@ -15,7 +15,8 @@
 //! This crate references Standard Illuminant D65
 //! when converting to/from the CIE colorspace.
 
-use std::cmp::Ordering;
+use core::cmp::Ordering;
+use core::ffi::{CStr, c_char};
 
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
@@ -196,6 +197,25 @@ pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
     // How long has this been in unstable...
     // convert_space_chunked(from, to, pixels.as_chunks_mut::<3>().0);
     pixels.chunks_exact_mut(3).for_each(|pixel| convert_space(from, to, pixel.try_into().unwrap()));
+}
+
+/// Same as `convert_space_sliced` but with FFI types.
+/// Returns 0 on success, 1 on invalid `from`, 2 on invalid `to`, 3 on invalid `pixels`
+#[no_mangle]
+pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
+    let from = unsafe { if from.is_null() {return 1} else {
+        if let Some(s) = CStr::from_ptr(from).to_str().ok().map(|s| Space::try_from(s).ok()).flatten() { s }
+        else {return 1}
+    }};
+    let to = unsafe { if to.is_null() {return 2} else {
+        if let Some(s) = CStr::from_ptr(to).to_str().ok().map(|s| Space::try_from(s).ok()).flatten() { s }
+        else {return 2}
+    }};
+    let pixels = unsafe { if pixels.is_null() {return 3} else {
+        core::slice::from_raw_parts_mut(pixels, len)
+    }};
+    convert_space_sliced(from, to, pixels);
+    0
 }
 
 /// Same as `convert_space`, ignores the 4th value in `pixel`.
