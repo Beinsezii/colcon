@@ -14,31 +14,17 @@
 //!
 //! This crate references Standard Illuminant D65
 //! when converting to/from the CIE colorspace.
-//! The feature flag `D50` changes this to Illuminant D50,
-//! used by BABL (GIMP) and possibly other programs.
+
+use std::cmp::Ordering;
 
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
-const D65_X: f32 = 0.950489;
-const D65_Y: f32 = 1.000000;
-const D65_Z: f32 = 1.088840;
-
 /// 'Standard' Illuminant D65.
-pub const D65: [f32; 3] = [D65_X, D65_Y, D65_Z];
-
-const D50_X: f32 = 0.964212;
-const D50_Y: f32 = 1.000000;
-const D50_Z: f32 = 0.825188;
+pub const D65: [f32; 3] = [0.950489, 1.000000, 1.088840];
 
 /// Illuminant D50, aka "printing" illuminant.
 /// Used by BABL/GIMP + others over D65, not sure why.
-pub const D50: [f32; 3] = [D50_X, D50_Y, D50_Z];
-
-#[cfg(feature = "D50")]
-const ILLUMINANT: [f32; 3] = D50;
-
-#[cfg(not(feature = "D50"))]
-const ILLUMINANT: [f32; 3] = D65;
+pub const D50: [f32; 3] = [0.964212, 1.000000, 0.825188];
 
 /// Expand gamma of a single value to linear light
 #[inline]
@@ -122,12 +108,12 @@ pub enum Space {
 impl ToString for Space {
     fn to_string(&self) -> String {
         match self {
-            Space::SRGB => String::from("rgba"),
-            Space::HSV => String::from("hsva"),
-            Space::LRGB => String::from("rgba"),
-            Space::XYZ => String::from("xyza"),
-            Space::LAB => String::from("laba"),
-            Space::LCH => String::from("lcha"),
+            Space::SRGB => String::from("rgb"),
+            Space::HSV => String::from("hsv"),
+            Space::LRGB => String::from("rgb"),
+            Space::XYZ => String::from("xyz"),
+            Space::LAB => String::from("lab"),
+            Space::LCH => String::from("lch"),
         }
     }
 }
@@ -147,51 +133,76 @@ impl TryFrom<&str> for Space {
     }
 }
 
-#[rustfmt::skip]
+impl PartialOrd for Space {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self == other { return Some(Ordering::Equal) }
+        Some(match self {
+            // Base
+            Space::SRGB => match other {_ => Ordering::Less},
+
+            // Endcaps
+            Space::HSV => match other {_ => Ordering::Greater},
+            Space::LCH => match other {_ => Ordering::Greater},
+
+            // Intermittents
+            Space::LRGB => match other {Space::SRGB => Ordering::Greater, _ => Ordering::Less}
+            Space::XYZ => match other {Space::SRGB | Space::LRGB => Ordering::Greater, _ => Ordering::Less}
+            Space::LAB => match other {Space::SRGB | Space::LRGB | Space::XYZ => Ordering::Greater, _ => Ordering::Less}
+        })
+    }
+}
+
+
+fn graph(mut from: Space, to: Space) -> Vec<extern "C" fn(&mut [f32; 3])> {
+    let mut result: Vec<extern "C" fn(&mut [f32; 3])> = Vec::with_capacity(6 * 2);
+    loop {
+        if from > to {
+            match from {
+                Space::SRGB => unreachable!(),
+                Space::HSV => {result.push(hsv_to_srgb); break},
+                Space::LRGB => {result.push(lrgb_to_srgb); break},
+                Space::XYZ => {result.push(xyz_to_lrgb); from = Space::LRGB},
+                Space::LAB => {result.push(lab_to_xyz); from = Space::XYZ},
+                Space::LCH => {result.push(lch_to_lab); from = Space::LAB},
+            }
+        } else if from < to {
+            match from {
+                // Endcaps
+                Space::LCH => unreachable!(),
+                Space::HSV => unreachable!(),
+
+                Space::SRGB => match to {
+                    Space::HSV => {result.push(srgb_to_hsv); break},
+                    _ => {result.push(srgb_to_lrgb); from = Space::LRGB}
+                }
+                Space::LRGB => {result.push(lrgb_to_xyz); from = Space::XYZ},
+                Space::XYZ => {result.push(xyz_to_lab); from = Space::LAB},
+                Space::LAB => {result.push(lab_to_lch); break},
+            }
+        } else {
+            break
+        }
+    }
+    result
+}
+
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
 pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
-    match (from, to) {
-        // No-op
-        (Space::SRGB, Space::SRGB)
-        | (Space::HSV, Space::HSV)
-        | (Space::LRGB, Space::LRGB)
-        | (Space::XYZ, Space::XYZ)
-        | (Space::LAB, Space::LAB)
-        | (Space::LCH, Space::LCH) => (),
-        // Up
-        (Space::SRGB, Space::HSV) => srgb_to_hsv(pixel),
-        (Space::SRGB, Space::LRGB) => srgb_to_lrgb(pixel),
-        (Space::SRGB, Space::XYZ) => {srgb_to_lrgb(pixel); lrgb_to_xyz(pixel)},
-        (Space::SRGB, Space::LAB) => {srgb_to_lrgb(pixel); lrgb_to_xyz(pixel); xyz_to_lab(pixel)},
-        (Space::SRGB, Space::LCH) => {srgb_to_lrgb(pixel); lrgb_to_xyz(pixel); xyz_to_lab(pixel); lab_to_lch(pixel)},
-        (Space::LRGB, Space::XYZ) => lrgb_to_xyz(pixel),
-        (Space::LRGB, Space::LAB) => {lrgb_to_xyz(pixel); xyz_to_lab(pixel)},
-        (Space::LRGB, Space::LCH) => {lrgb_to_xyz(pixel); xyz_to_lab(pixel); lab_to_lch(pixel)},
-        (Space::XYZ, Space::LAB) => xyz_to_lab(pixel),
-        (Space::XYZ, Space::LCH) => {xyz_to_lab(pixel); lab_to_lch(pixel)},
-        (Space::LAB, Space::LCH) => lab_to_lch(pixel),
-        (Space::HSV, Space::LRGB) => {hsv_to_srgb(pixel); srgb_to_lrgb(pixel)},
-        (Space::HSV, Space::XYZ) => {hsv_to_srgb(pixel); srgb_to_lrgb(pixel); lrgb_to_xyz(pixel)},
-        (Space::HSV, Space::LAB) => {hsv_to_srgb(pixel); srgb_to_lrgb(pixel); lrgb_to_xyz(pixel); xyz_to_lab(pixel)},
-        (Space::HSV, Space::LCH) => {hsv_to_srgb(pixel); srgb_to_lrgb(pixel); lrgb_to_xyz(pixel); xyz_to_lab(pixel); lab_to_lch(pixel)},
-        // Down
-        (Space::LCH, Space::LAB) => lch_to_lab(pixel),
-        (Space::LCH, Space::XYZ) => {lch_to_lab(pixel); lab_to_xyz(pixel)},
-        (Space::LCH, Space::LRGB) => {lch_to_lab(pixel); lab_to_xyz(pixel); xyz_to_lrgb(pixel)},
-        (Space::LCH, Space::SRGB) => {lch_to_lab(pixel); lab_to_xyz(pixel); xyz_to_lrgb(pixel); lrgb_to_srgb(pixel)},
-        (Space::LCH, Space::HSV) => {lch_to_lab(pixel); lab_to_xyz(pixel); xyz_to_lrgb(pixel); lrgb_to_srgb(pixel); srgb_to_hsv(pixel)},
-        (Space::LAB, Space::XYZ) => lab_to_xyz(pixel),
-        (Space::LAB, Space::LRGB) => {lab_to_xyz(pixel); xyz_to_lrgb(pixel)},
-        (Space::LAB, Space::SRGB) => {lab_to_xyz(pixel); xyz_to_lrgb(pixel); lrgb_to_srgb(pixel)},
-        (Space::LAB, Space::HSV) => {lab_to_xyz(pixel); xyz_to_lrgb(pixel); lrgb_to_srgb(pixel); srgb_to_hsv(pixel)},
-        (Space::XYZ, Space::SRGB) => {xyz_to_lrgb(pixel); lrgb_to_srgb(pixel)},
-        (Space::XYZ, Space::LRGB) => xyz_to_lrgb(pixel),
-        (Space::XYZ, Space::HSV) => {xyz_to_lrgb(pixel); lrgb_to_srgb(pixel); srgb_to_hsv(pixel)},
-        (Space::LRGB, Space::SRGB) => lrgb_to_srgb(pixel),
-        (Space::LRGB, Space::HSV) => {lrgb_to_srgb(pixel); srgb_to_hsv(pixel)},
-        (Space::HSV, Space::SRGB) => hsv_to_srgb(pixel),
-    }
+   graph(from, to).into_iter().for_each(|f| f(pixel))
+}
+
+/// Runs conversion functions to convert `pixel` from one `Space` to another
+/// in the least possible moves. Caches conversion graph for faster iteration.
+pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
+    graph(from, to).into_iter().for_each(|f| pixels.iter_mut().for_each(|pixel| f(pixel)))
+}
+
+/// Runs conversion functions to convert `pixel` from one `Space` to another
+/// in the least possible moves. Caches conversion graph for faster iteration.
+/// Ignores remainder values in slice
+pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
+    graph(from, to).into_iter().for_each(|f| pixels.chunks_exact_mut(3).for_each(|pixel| f(pixel.try_into().unwrap())))
 }
 
 /// Same as `convert_space`, ignores the 4th value in `pixel`.
@@ -286,7 +297,7 @@ pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
 #[no_mangle]
 pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
-    pixel.iter_mut().zip(ILLUMINANT).for_each(|(c, d)| *c /= d);
+    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c /= d);
 
     pixel.iter_mut().for_each(|c| {
         if *c > LAB_DELTA.powi(3) {
@@ -429,7 +440,7 @@ pub extern "C" fn lab_to_xyz(pixel: &mut [f32; 3]) {
         }
     });
 
-    pixel.iter_mut().zip(ILLUMINANT).for_each(|(c, d)| *c *= d);
+    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c *= d);
 }
 
 /// Convert from CIE LCH to CIE LAB.
@@ -578,6 +589,22 @@ mod tests {
         convert_space(Space::SRGB, Space::LCH, &mut pixel);
         convert_space(Space::LCH, Space::SRGB, &mut pixel);
         pixcmp(pixel, SRGB)
+    }
+
+    #[test]
+    fn sweep_chunk() {
+        let mut pixel = [SRGB];
+        convert_space_chunked(Space::SRGB, Space::LCH, &mut pixel);
+        convert_space_chunked(Space::LCH, Space::SRGB, &mut pixel);
+        pixcmp(pixel[0], SRGB)
+    }
+
+    #[test]
+    fn sweep_slice() {
+        let pixel: &mut [f32] = &mut SRGB.clone();
+        convert_space_sliced(Space::SRGB, Space::LCH, pixel);
+        convert_space_sliced(Space::LCH, Space::SRGB, pixel);
+        pixcmp(pixel.try_into().unwrap(), SRGB)
     }
 
     #[test]

@@ -17,43 +17,43 @@ pub fn conversions(c: &mut Criterion) {
     let pixels = pixels();
 
     c.bench_function("srgb_to_lrgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::SRGB, Space::LRGB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::srgb_to_lrgb(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lrgb_to_xyz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LRGB, Space::XYZ, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_xyz(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("xyz_to_lab", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::XYZ, Space::LAB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_lab(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lab_to_lch", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LAB, Space::LCH, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lab_to_lch(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lch_to_lab", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LCH, Space::LAB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lch_to_lab(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lab_to_xyz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LAB, Space::XYZ, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lab_to_xyz(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("xyz_to_lrgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::XYZ, Space::LRGB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_lrgb(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lrgb_to_srgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LRGB, Space::SRGB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_srgb(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("srgb_to_hsv", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::SRGB, Space::HSV, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::srgb_to_hsv(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("hsv_to_srgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::HSV, Space::SRGB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::hsv_to_srgb(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("expand_gamma", |b| b.iter(|| {
@@ -72,6 +72,33 @@ pub fn conversions(c: &mut Criterion) {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LCH, Space::SRGB, pixel.try_into().unwrap())));
     } ));
 
+    c.bench_function("full_to_chunk", |b| b.iter(|| {
+        black_box(colcon::convert_space_chunked(Space::LCH, Space::SRGB, pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
+    } ));
+
+    c.bench_function("full_from_chunk", |b| b.iter(|| {
+        black_box(colcon::convert_space_chunked(Space::LCH, Space::SRGB, &mut pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
+    } ));
+
+    c.bench_function("full_to_slice", |b| b.iter(|| {
+        black_box(colcon::convert_space_sliced(Space::LCH, Space::SRGB, &mut pixels.clone()));
+    } ));
+
+    c.bench_function("full_from_slice", |b| b.iter(|| {
+        black_box(colcon::convert_space_sliced(Space::LCH, Space::SRGB, &mut pixels.clone()));
+    } ));
+
+    c.bench_function("single", |b| b.iter(|| {
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LRGB, Space::XYZ, pixel.try_into().unwrap())));
+    } ));
+
+    c.bench_function("single_chunk", |b| b.iter(|| {
+        black_box(colcon::convert_space_chunked(Space::LRGB, Space::XYZ, pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
+    } ));
+
+    c.bench_function("single_slice", |b| b.iter(|| {
+        black_box(colcon::convert_space_sliced(Space::LRGB, Space::XYZ, &mut pixels.clone()));
+    } ));
 }
 
 criterion_group!(benches, conversions);
