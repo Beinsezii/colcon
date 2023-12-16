@@ -9,23 +9,69 @@
 //! Helmholtz-Kohlrausch compensation formulae sourced from
 //! <https://onlinelibrary.wiley.com/doi/10.1002/col.22839>
 //!
-//! Currently, everything seems to check out except CIE XYZ.
-//! The Wikipedia formula matches EasyRGB, but BABL uses something different.
-//!
-//! This crate references Standard Illuminant D65
-//! when converting to/from the CIE colorspace.
+//! This crate references CIE Standard Illuminant D65 for functions to/from CIE XYZ
 
 use core::cmp::Ordering;
-use core::ffi::{CStr, c_char};
+use core::ffi::{c_char, CStr};
 
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
-/// 'Standard' Illuminant D65.
-pub const D65: [f32; 3] = [0.950489, 1.000000, 1.088840];
+// ### MATRICES ### {{{
+// CIE XYZ
+const XYZ65_MAT: [[f32; 3]; 3] = [
+    [0.4124, 0.3576, 0.1805],
+    [0.2126, 0.7152, 0.0722],
+    [0.0193, 0.1192, 0.9505],
+];
 
-/// Illuminant D50, aka "printing" illuminant.
-/// Used by BABL/GIMP + others over D65, not sure why.
-pub const D50: [f32; 3] = [0.964212, 1.000000, 0.825188];
+const XYZ65_MAT_INV: [[f32; 3]; 3] = [
+    [3.2406, -1.5372, -0.4986],
+    [-0.9689, 1.8758, 0.0415],
+    [0.0557, -0.2040, 1.0570],
+];
+
+// OKLAB
+const OKLAB_M1: [[f32; 3]; 3] = [
+    [0.8189330101, 0.0329845436, 0.0482003018],
+    [0.3618667424, 0.9293118715, 0.2643662691],
+    [-0.1288597137, 0.0361456387, 0.6338517070],
+];
+const OKLAB_M2: [[f32; 3]; 3] = [
+    [0.2104542553, 1.9779984951, 0.0259040371],
+    [0.7936177850, -2.4285922050, 0.7827717662],
+    [-0.0040720468, 0.4505937099, -0.8086757660],
+];
+const OKLAB_M1_INV: [[f32; 3]; 3] = [
+    [1.2270138511, -0.0405801784, -0.0763812845],
+    [-0.5577999807, 1.1122568696, -0.4214819784],
+    [0.281256149, -0.0716766787, 1.5861632204],
+];
+const OKLAB_M2_INV: [[f32; 3]; 3] = [
+    [0.9999999985, 1.0000000089, 1.0000000547],
+    [0.3963377922, -0.1055613423, -0.0894841821],
+    [0.2158037581, -0.0638541748, -1.2914855379],
+];
+/// 3 * 3x3 Matrix multiply
+fn matmul3(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
+    [
+        pixel[0] * matrix[0][0] + pixel[1] * matrix[1][0] + pixel[2] * matrix[2][0],
+        pixel[0] * matrix[0][1] + pixel[1] * matrix[1][1] + pixel[2] * matrix[2][1],
+        pixel[0] * matrix[0][2] + pixel[1] * matrix[1][2] + pixel[2] * matrix[2][2],
+    ]
+}
+
+/// Transposed 3 * 3x3 matrix multiply
+fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
+    [
+        pixel[0] * matrix[0][0] + pixel[1] * matrix[0][1] + pixel[2] * matrix[0][2],
+        pixel[0] * matrix[1][0] + pixel[1] * matrix[1][1] + pixel[2] * matrix[1][2],
+        pixel[0] * matrix[2][0] + pixel[1] * matrix[2][1] + pixel[2] * matrix[2][2],
+    ]
+}
+// ### MATRICES ### }}}
+
+/// 'Standard' Illuminant D65.
+pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
 
 /// Expand gamma of a single value to linear light
 #[inline]
@@ -94,16 +140,17 @@ pub enum Space {
     HSV,
     /// "Linear Light RGB", aka no perceptual gamma.
     LRGB,
-    /// CIE XYZ.
-    /// Currently using the wikipedia formula. BABL uses a different one.
-    /// Not sure which is most correct...
+    /// CIE XYZ @ D65.
     XYZ,
     /// CIE LAB (Lightness a/b).
-    /// Calculated in illuminant D65 unless the `D50` features flag is passed.
     LAB,
     /// CIE LCh (Lightness Chroma Hue).
     /// Cylindrical version of CIE LAB.
     LCH,
+    /// OK Lab <https://bottosson.github.io/posts/oklab/>
+    OKLAB,
+    /// Polar version of OK Lab
+    OKLCH,
 }
 
 impl ToString for Space {
@@ -115,6 +162,8 @@ impl ToString for Space {
             Space::XYZ => String::from("xyz"),
             Space::LAB => String::from("lab"),
             Space::LCH => String::from("lch"),
+            Space::OKLAB => String::from("oklab"),
+            Space::OKLCH => String::from("oklch"),
         }
     }
 }
@@ -129,6 +178,8 @@ impl TryFrom<&str> for Space {
             "xyz" | "xyza" => Ok(Space::XYZ),
             "lab" | "laba" => Ok(Space::LAB),
             "lch" | "lcha" => Ok(Space::LCH),
+            "oklab" | "oklaba" => Ok(Space::OKLAB),
+            "oklch" | "oklcha" => Ok(Space::OKLCH),
             _ => Err(()),
         }
     }
@@ -136,19 +187,37 @@ impl TryFrom<&str> for Space {
 
 impl PartialOrd for Space {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self == other { return Some(Ordering::Equal) }
+        if self == other {
+            return Some(Ordering::Equal);
+        }
         Some(match self {
             // Base
-            Space::SRGB => match other {_ => Ordering::Less},
+            Space::SRGB => Ordering::Less,
 
             // Endcaps
-            Space::HSV => match other {_ => Ordering::Greater},
-            Space::LCH => match other {_ => Ordering::Greater},
+            Space::HSV => Ordering::Greater,
+            Space::LCH => Ordering::Greater,
+            Space::OKLCH => Ordering::Greater,
 
-            // Intermittents
-            Space::LRGB => match other {Space::SRGB => Ordering::Greater, _ => Ordering::Less}
-            Space::XYZ => match other {Space::SRGB | Space::LRGB => Ordering::Greater, _ => Ordering::Less}
-            Space::LAB => match other {Space::SRGB | Space::LRGB | Space::XYZ => Ordering::Greater, _ => Ordering::Less}
+            // Common to LAB Branches
+            Space::LRGB => match other {
+                Space::SRGB | Space::HSV => Ordering::Greater,
+                _ => Ordering::Less,
+            },
+            Space::XYZ => match other {
+                Space::SRGB | Space::LRGB | Space::HSV => Ordering::Greater,
+                _ => Ordering::Less,
+            },
+
+            // LAB Branches
+            Space::LAB => match other {
+                Space::LCH => Ordering::Less,
+                _ => Ordering::Greater,
+            },
+            Space::OKLAB => match other {
+                Space::OKLCH => Ordering::Less,
+                _ => Ordering::Greater,
+            },
         })
     }
 }
@@ -167,25 +236,66 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
     if from > to {
         match from {
             Space::SRGB => unreachable!(),
-            Space::HSV => pixels.iter_mut().for_each(|pixel| hsv_to_srgb(pixel)),
-            Space::LRGB => pixels.iter_mut().for_each(|pixel| lrgb_to_srgb(pixel)),
-            Space::XYZ => {pixels.iter_mut().for_each(|pixel| xyz_to_lrgb(pixel)); convert_space_chunked(Space::LRGB, to, pixels)},
-            Space::LAB => {pixels.iter_mut().for_each(|pixel| lab_to_xyz(pixel)); convert_space_chunked(Space::XYZ, to, pixels)},
-            Space::LCH => {pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel)); convert_space_chunked(Space::LAB, to, pixels)},
+            Space::HSV => {
+                pixels.iter_mut().for_each(|pixel| hsv_to_srgb(pixel));
+                convert_space_chunked(Space::SRGB, to, pixels)
+            }
+            Space::LRGB => {
+                pixels.iter_mut().for_each(|pixel| lrgb_to_srgb(pixel));
+                convert_space_chunked(Space::SRGB, to, pixels)
+            }
+            Space::XYZ => {
+                pixels.iter_mut().for_each(|pixel| xyz_to_lrgb(pixel));
+                convert_space_chunked(Space::LRGB, to, pixels)
+            }
+            Space::LAB => {
+                pixels.iter_mut().for_each(|pixel| lab_to_xyz(pixel));
+                convert_space_chunked(Space::XYZ, to, pixels)
+            }
+            Space::LCH => {
+                pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
+                convert_space_chunked(Space::LAB, to, pixels)
+            }
+            Space::OKLAB => {
+                pixels.iter_mut().for_each(|pixel| oklab_to_xyz(pixel));
+                convert_space_chunked(Space::XYZ, to, pixels)
+            }
+            Space::OKLCH => {
+                pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
+                convert_space_chunked(Space::OKLAB, to, pixels)
+            }
         }
     } else if from < to {
         match from {
             // Endcaps
-            Space::LCH => unreachable!(),
             Space::HSV => unreachable!(),
+            Space::LCH => unreachable!(),
+            Space::OKLCH => unreachable!(),
 
             Space::SRGB => match to {
                 Space::HSV => pixels.iter_mut().for_each(|pixel| srgb_to_hsv(pixel)),
-                _ => {pixels.iter_mut().for_each(|pixel| srgb_to_lrgb(pixel)); convert_space_chunked(Space::LRGB, to, pixels)}
+                _ => {
+                    pixels.iter_mut().for_each(|pixel| srgb_to_lrgb(pixel));
+                    convert_space_chunked(Space::LRGB, to, pixels)
+                }
+            },
+            Space::LRGB => {
+                pixels.iter_mut().for_each(|pixel| lrgb_to_xyz(pixel));
+                convert_space_chunked(Space::XYZ, to, pixels)
             }
-            Space::LRGB => {pixels.iter_mut().for_each(|pixel| lrgb_to_xyz(pixel)); convert_space_chunked(Space::XYZ, to, pixels)},
-            Space::XYZ => {pixels.iter_mut().for_each(|pixel| xyz_to_lab(pixel)); convert_space_chunked(Space::LAB, to, pixels)},
+            Space::XYZ => match to {
+                Space::LAB | Space::LCH => {
+                    pixels.iter_mut().for_each(|pixel| xyz_to_lab(pixel));
+                    convert_space_chunked(Space::LAB, to, pixels)
+                }
+                Space::OKLAB | Space::OKLCH => {
+                    pixels.iter_mut().for_each(|pixel| xyz_to_oklab(pixel));
+                    convert_space_chunked(Space::OKLAB, to, pixels)
+                }
+                _ => unreachable!("XYZ tried to promote to {}", to.to_string()),
+            },
             Space::LAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
+            Space::OKLAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
         }
     }
 }
@@ -196,24 +306,59 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
 pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
     // How long has this been in unstable...
     // convert_space_chunked(from, to, pixels.as_chunks_mut::<3>().0);
-    pixels.chunks_exact_mut(3).for_each(|pixel| convert_space(from, to, pixel.try_into().unwrap()));
+    pixels
+        .chunks_exact_mut(3)
+        .for_each(|pixel| convert_space(from, to, pixel.try_into().unwrap()));
 }
 
 /// Same as `convert_space_sliced` but with FFI types.
 /// Returns 0 on success, 1 on invalid `from`, 2 on invalid `to`, 3 on invalid `pixels`
 #[no_mangle]
-pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
-    let from = unsafe { if from.is_null() {return 1} else {
-        if let Some(s) = CStr::from_ptr(from).to_str().ok().map(|s| Space::try_from(s).ok()).flatten() { s }
-        else {return 1}
-    }};
-    let to = unsafe { if to.is_null() {return 2} else {
-        if let Some(s) = CStr::from_ptr(to).to_str().ok().map(|s| Space::try_from(s).ok()).flatten() { s }
-        else {return 2}
-    }};
-    let pixels = unsafe { if pixels.is_null() {return 3} else {
-        core::slice::from_raw_parts_mut(pixels, len)
-    }};
+pub extern "C" fn convert_space_ffi(
+    from: *const c_char,
+    to: *const c_char,
+    pixels: *mut f32,
+    len: usize,
+) -> i32 {
+    let from = unsafe {
+        if from.is_null() {
+            return 1;
+        } else {
+            if let Some(s) = CStr::from_ptr(from)
+                .to_str()
+                .ok()
+                .map(|s| Space::try_from(s).ok())
+                .flatten()
+            {
+                s
+            } else {
+                return 1;
+            }
+        }
+    };
+    let to = unsafe {
+        if to.is_null() {
+            return 2;
+        } else {
+            if let Some(s) = CStr::from_ptr(to)
+                .to_str()
+                .ok()
+                .map(|s| Space::try_from(s).ok())
+                .flatten()
+            {
+                s
+            } else {
+                return 2;
+            }
+        }
+    };
+    let pixels = unsafe {
+        if pixels.is_null() {
+            return 3;
+        } else {
+            core::slice::from_raw_parts_mut(pixels, len)
+        }
+    };
     convert_space_sliced(from, to, pixels);
     0
 }
@@ -295,21 +440,18 @@ pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
     pixel.iter_mut().for_each(|c| *c = expand_gamma(*c));
 }
 
-/// Convert from Linear Light RGB to CIE XYZ.
+/// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
 #[no_mangle]
 pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
-    *pixel = [
-        (0.4124 * pixel[0] + 0.3576 * pixel[1] + 0.1805 * pixel[2]), // X
-        (0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2]), // Y
-        (0.0193 * pixel[0] + 0.1192 * pixel[1] + 0.9505 * pixel[2]), // Z
-    ]
+    *pixel = matmul3t(*pixel, XYZ65_MAT)
 }
 
 /// Convert from CIE XYZ to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
 #[no_mangle]
 pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
+    // Reverse D65 standard illuminant
     pixel.iter_mut().zip(D65).for_each(|(c, d)| *c /= d);
 
     pixel.iter_mut().for_each(|c| {
@@ -325,6 +467,15 @@ pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
         500.0 * (pixel[0] - pixel[1]),
         200.0 * (pixel[1] - pixel[2]),
     ]
+}
+
+/// Convert from CIE XYZ to OKLAB.
+/// <https://bottosson.github.io/posts/oklab/>
+#[no_mangle]
+pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
+    let mut lms = matmul3(*pixel, OKLAB_M1);
+    lms.iter_mut().for_each(|c| *c = c.cbrt());
+    *pixel = matmul3(lms, OKLAB_M2);
 }
 
 /// Convert from CIE LAB to CIE LCH.
@@ -428,11 +579,7 @@ pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 #[no_mangle]
 pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
-    *pixel = [
-        3.2406 * pixel[0] - 1.5372 * pixel[1] - 0.4986 * pixel[2],
-        -0.9689 * pixel[0] + 1.8758 * pixel[1] + 0.0415 * pixel[2],
-        0.0557 * pixel[0] - 0.2040 * pixel[1] + 1.0570 * pixel[2],
-    ];
+    *pixel = matmul3t(*pixel, XYZ65_MAT_INV)
 }
 
 /// Convert from CIE LAB to CIE XYZ.
@@ -456,6 +603,15 @@ pub extern "C" fn lab_to_xyz(pixel: &mut [f32; 3]) {
     pixel.iter_mut().zip(D65).for_each(|(c, d)| *c *= d);
 }
 
+/// Convert from OKLAB to CIE XYZ.
+/// <https://bottosson.github.io/posts/oklab/>
+#[no_mangle]
+pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
+    let mut lms = matmul3(*pixel, OKLAB_M2_INV);
+    lms.iter_mut().for_each(|c| *c = c.powi(3));
+    *pixel = matmul3(lms, OKLAB_M1_INV);
+}
+
 /// Convert from CIE LCH to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
@@ -474,43 +630,32 @@ pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
 mod tests {
     use super::*;
 
+    // consts without colour-science references
     const HEX: &str = "#3359F2";
     const IRGB: [u8; 3] = [51, 89, 242];
-    const SRGB: [f32; 3] = [0.200000, 0.350000, 0.950000];
     const LRGB: [f32; 3] = [0.033105, 0.100482, 0.890006];
 
-    // For both BABL and EasyRGB the decimals are off at the thousandths.
-    // BABL at least works in f32 im pretty sure, though I also think it transitions by
-    // reducing to LRGB as a common denominator before working back up, so maybe the rounding
-    // errors happen in there as colcon will go XYZ -> LAB directly
+    // colour-science references
+    const SRGB: [f32; 3] = [0.20000000, 0.35000000, 0.95000000];
+    const HSV: [f32; 3] = [0.63333333, 0.78947368, 0.95000000];
+    const XYZ: [f32; 3] = [0.21023057, 0.14316084, 0.85856646];
+    const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
+    const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
+    const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
+    // no OKLCH test as it's the same as CIE LCH
 
-    // taken from <https://easyrgb.com>
-    // Runs @ D65
-    // Their XYZ is normalized 0-100 while BABL and I believe wikipedia
-    // is 0-1 so I've adjusted the decimals.
-
-    const HSV: [f32; 3] = [0.6333, 0.7894, 0.9500];
-    const XYZ: [f32; 3] = [0.21017, 0.14314, 0.85839];
-    const LAB: [f32; 3] = [44.679, 40.806, -80.139];
-    const LCH: [f32; 3] = [44.679, 89.930, 296.985];
-
-    // Taken from BABL, which I honestly trust more
-    // Runs @ D50 so needs to be tested with that
-    // TODO: their XYZ implementation is different wikipedia/easyrgb...
-    // I should probably at least add a feature flag to change it
-    // <https://gitlab.gnome.org/GNOME/babl/-/blob/master/babl/babl-space.c>
-    // const HSV: [f32; 3] = [0.633333, 0.789474, 0.950000];
-
-    // const XYZ: [f32; 3] = [0.180448, 0.133343, 0.645614];
-    // const LAB: [f32; 3] = [43.262680, 30.556679, -82.134712];
-    // const LCH: [f32; 3] = [43.262680, 87.634590, 290.406769];
-
-    fn pixcmp(a: [f32; 3], b: [f32; 3]) {
-        assert_eq!(
-            format!("{:.3} {:.3} {:.3}", a[0], a[1], a[2]),
-            format!("{:.3} {:.3} {:.3}", b[0], b[1], b[2])
-        );
+    fn pixcmp_eps(a: [f32; 3], b: [f32; 3], eps: f32) {
+        a.iter().zip(b.iter()).for_each(|(ac, bc)| {
+            if (ac - bc).abs() > eps {
+                panic!(
+                    "\n{:.8} {:.8} {:.8}\n{:.8} {:.8} {:.8}\n",
+                    a[0], a[1], a[2], b[0], b[1], b[2]
+                )
+            }
+        });
     }
+
+    fn pixcmp(a: [f32; 3], b: [f32; 3]) { pixcmp_eps(a, b, 1e-4) }
 
     #[test]
     fn hsv_to() {
@@ -583,41 +728,90 @@ mod tests {
     }
 
     #[test]
-    fn full_to() {
-        let mut pixel = SRGB;
-        convert_space(Space::SRGB, Space::LCH, &mut pixel);
-        pixcmp(pixel, LCH);
+    fn oklab_to() {
+        let mut pixel = XYZ;
+        xyz_to_oklab(&mut pixel);
+        pixcmp(pixel, OKLAB);
     }
 
     #[test]
-    fn full_from() {
-        let mut pixel = LCH;
+    fn oklab_from() {
+        let mut pixel = OKLAB;
+        oklab_to_xyz(&mut pixel);
+        pixcmp(pixel, XYZ);
+    }
+
+    #[test]
+    fn cielab_full() {
+        let mut pixel = SRGB;
+        convert_space(Space::SRGB, Space::LCH, &mut pixel);
+        pixcmp(pixel, LCH);
         convert_space(Space::LCH, Space::SRGB, &mut pixel);
         pixcmp(pixel, SRGB);
     }
 
     #[test]
-    fn sweep() {
+    fn oklab_full() {
         let mut pixel = SRGB;
-        convert_space(Space::SRGB, Space::LCH, &mut pixel);
-        convert_space(Space::LCH, Space::SRGB, &mut pixel);
-        pixcmp(pixel, SRGB)
+        let mut oklch = OKLAB;
+        lab_to_lch(&mut oklch);
+        convert_space(Space::SRGB, Space::OKLCH, &mut pixel);
+        pixcmp(pixel, oklch);
+        convert_space(Space::OKLCH, Space::SRGB, &mut pixel);
+        pixcmp(pixel, SRGB);
     }
 
     #[test]
-    fn sweep_chunk() {
+    fn tree_jump() {
+        println!("BEGIN");
+        let mut pixel = HSV;
+        let mut oklch = OKLAB;
+        lab_to_lch(&mut oklch);
+
+        // the hundred conversions gradually decreases accuracy
+        let eps = 1e-2;
+
+        // forwards
+        println!("HSV -> LCH");
+        convert_space(Space::HSV, Space::LCH, &mut pixel);
+        pixcmp_eps(pixel, LCH, eps);
+
+        println!("LCH -> OKLCH");
+        convert_space(Space::LCH, Space::OKLCH, &mut pixel);
+        pixcmp_eps(pixel, oklch, eps);
+
+        println!("OKLCH -> HSV");
+        convert_space(Space::OKLCH, Space::HSV, &mut pixel);
+        pixcmp_eps(pixel, HSV, eps);
+
+        // backwards
+        println!("HSV -> OKLCH");
+        convert_space(Space::HSV, Space::OKLCH, &mut pixel);
+        pixcmp_eps(pixel, oklch, eps);
+
+        println!("OKLCH -> LCH");
+        convert_space(Space::OKLCH, Space::LCH, &mut pixel);
+        pixcmp_eps(pixel, LCH, eps);
+
+        println!("LCH -> HSV");
+        convert_space(Space::LCH, Space::HSV, &mut pixel);
+        pixcmp_eps(pixel, HSV, eps);
+
+        println!("BEGIN");
+    }
+
+    #[test]
+    fn chunked() {
         let mut pixel = [SRGB];
         convert_space_chunked(Space::SRGB, Space::LCH, &mut pixel);
-        convert_space_chunked(Space::LCH, Space::SRGB, &mut pixel);
-        pixcmp(pixel[0], SRGB)
+        pixcmp(pixel[0], LCH)
     }
 
     #[test]
-    fn sweep_slice() {
+    fn sliced() {
         let pixel: &mut [f32] = &mut SRGB.clone();
         convert_space_sliced(Space::SRGB, Space::LCH, pixel);
-        convert_space_sliced(Space::LCH, Space::SRGB, pixel);
-        pixcmp(pixel.try_into().unwrap(), SRGB)
+        pixcmp(pixel.try_into().unwrap(), LCH)
     }
 
     #[test]

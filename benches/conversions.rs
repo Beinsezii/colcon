@@ -28,12 +28,20 @@ pub fn conversions(c: &mut Criterion) {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_lab(pixel.try_into().unwrap())));
     } ));
 
+    c.bench_function("xyz_to_oklab", |b| b.iter(|| {
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_oklab(pixel.try_into().unwrap())));
+    } ));
+
     c.bench_function("lab_to_lch", |b| b.iter(|| {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lab_to_lch(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lch_to_lab", |b| b.iter(|| {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lch_to_lab(pixel.try_into().unwrap())));
+    } ));
+
+    c.bench_function("oklab_to_xyz", |b| b.iter(|| {
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::oklab_to_xyz(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lab_to_xyz", |b| b.iter(|| {
