@@ -14,8 +14,6 @@
 use core::cmp::Ordering;
 use core::ffi::{c_char, CStr};
 
-const LAB_DELTA: f32 = 6.0 / 29.0;
-
 // ### MATRICES ### {{{
 // CIE XYZ
 const XYZ65_MAT: [[f32; 3]; 3] = [
@@ -70,8 +68,12 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 }
 // ### MATRICES ### }}}
 
-/// 'Standard' Illuminant D65.
+// ### UTILITIES ### {{{
+
+/// Standard Illuminant D65.
 pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
+
+const LAB_DELTA: f32 = 6.0 / 29.0;
 
 /// Expand gamma of a single value to linear light
 #[inline]
@@ -94,6 +96,9 @@ pub extern "C" fn correct_gamma(n: f32) -> f32 {
         1.055 * (n.powf(1.0 / 2.4)) - 0.055
     }
 }
+// ### UTILITIES ### }}}
+
+// ### Helmholtz-Kohlrausch ### {{{
 
 /// Extended K-values from High et al 2021/2022
 const K_HIGH2022: [f32; 4] = [0.1644, 0.0603, 0.1307, 0.0060];
@@ -130,6 +135,10 @@ pub extern "C" fn hk_delta_2023(lch: &[f32; 3]) -> f32 {
 pub extern "C" fn hk_comp_2023(lch: &mut [f32; 3]) {
     lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_delta_2023(lch)
 }
+
+// ### Helmholtz-Kohlrausch ### }}}
+
+// ### Space ### {{{
 
 /// Defines colorspace pixels will take.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -221,6 +230,10 @@ impl PartialOrd for Space {
         })
     }
 }
+
+// ### Space ### }}}
+
+// ### Convert Space ### {{{
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
@@ -375,7 +388,9 @@ pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
     }
 }
 
-// UP {{{
+// ### Convert Space ### }}}
+
+// ### UP ###  {{{
 
 /// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
 /// Simply clips values > 1.0 && < 0.0.
@@ -489,9 +504,9 @@ pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
     ];
 }
 
-// UP }}}
+// ### UP ### }}}
 
-// DOWN {{{
+// ### DOWN ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
 /// Not RGB specific, but other formats typically aren't represented as integers.
@@ -625,7 +640,7 @@ pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
 
 // DOWN }}}
 
-// TESTS {{{
+// ### TESTS ### {{{
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -654,7 +669,9 @@ mod tests {
         });
     }
 
-    fn pixcmp(a: [f32; 3], b: [f32; 3]) { pixcmp_eps(a, b, 1e-4) }
+    fn pixcmp(a: [f32; 3], b: [f32; 3]) {
+        pixcmp_eps(a, b, 1e-4)
+    }
 
     #[test]
     fn hsv_to() {
@@ -858,4 +875,4 @@ mod tests {
         }
     }
 }
-// TESTS }}}
+// ### TESTS ### }}}
