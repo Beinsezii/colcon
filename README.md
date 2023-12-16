@@ -1,17 +1,23 @@
-# ColCon 0.3.0
+# ColCon 0.4.0
 Simple colorspace conversions in Rust.
 
 ## Features
   * Pure Rust, no dependencies.
-  * Mostly accurate kinda
   * Most functions compile to a C lib
+  * SRGB, HSV, XYZ, CIE LAB, OKLAB
+    + LCH versions of LAB spaces
+  * Accurate to 1e-4 minimum, referencing [colour-science](https://github.com/colour-science/colour)
 
-## Goals for 1.0
-  * Figure out the XYZ situation with BABL vs Wikipedia/EasyRGB
-    * or at least add it as a feature flag
+## Future
+  * Look into SIMD when supported by standard library
+  * More spaces
+  * Generic dtypes?
+
+## Known Issues
+  * `convert_space_sliced` is slower than it could be. Waiting for [slice_as_chunks](https://github.com/rust-lang/rust/issues/74985) to land in stable.
+  * Performing many (>100) conversions in sequence will gradually degrade the data due to tiny precision issues accumulating.
 
 ## F.A.Q.
 Question|Answer
 ---|---
 Why?|I just wanna say "go from this to this" without any fuss.
-There's already a library for this!|Probably.
