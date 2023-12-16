@@ -145,36 +145,31 @@ pub extern "C" fn hk_comp_2023(lch: &mut [f32; 3]) {
 pub enum Space {
     /// Gamma-corrected sRGB.
     SRGB,
-    /// Hue Saturation Value. Legacy format, LCH is preferred.
-    HSV,
-    /// "Linear Light RGB", aka no perceptual gamma.
-    LRGB,
-    /// CIE XYZ @ D65.
-    XYZ,
-    /// CIE LAB (Lightness a/b).
-    LAB,
-    /// CIE LCh (Lightness Chroma Hue).
-    /// Cylindrical version of CIE LAB.
-    LCH,
-    /// OK Lab <https://bottosson.github.io/posts/oklab/>
-    OKLAB,
-    /// Polar version of OK Lab
-    OKLCH,
-}
 
-impl ToString for Space {
-    fn to_string(&self) -> String {
-        match self {
-            Space::SRGB => String::from("rgb"),
-            Space::HSV => String::from("hsv"),
-            Space::LRGB => String::from("rgb"),
-            Space::XYZ => String::from("xyz"),
-            Space::LAB => String::from("lab"),
-            Space::LCH => String::from("lch"),
-            Space::OKLAB => String::from("lab"),
-            Space::OKLCH => String::from("lch"),
-        }
-    }
+    /// Hue Saturation Value.
+    /// A UCS typically preferred for modern applications
+    HSV,
+
+    /// Linear RGB. IEC 61966-2-1:1999 transferred
+    LRGB,
+
+    /// 1931 CIE XYZ @ D65.
+    XYZ,
+
+    /// CIE L*a*b*. Lightness, red/green chromacity, yellow/blue chromacity.
+    /// Old UCS with many known flaws
+    LAB,
+
+    /// CIE L*C*Hab. Lightness, Chroma, Hue
+    /// Cylindrical version of CIE L*a*b*.
+    LCH,
+
+    /// Oklab <https://bottosson.github.io/posts/oklab/>
+    /// Modern UCS, used in CSS Color Module Level 4
+    OKLAB,
+
+    /// Cylindrical version of OKLAB.
+    OKLCH,
 }
 
 impl TryFrom<&str> for Space {
@@ -191,6 +186,21 @@ impl TryFrom<&str> for Space {
             "oklch" | "oklcha" => Ok(Space::OKLCH),
             _ => Err(()),
         }
+    }
+}
+
+impl core::fmt::Display for Space {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::write(f, core::format_args!("{}", match self {
+            Self::SRGB => "sRGB",
+            Self::HSV => "HSV",
+            Self::LRGB => "RGB",
+            Self::XYZ => "CIE XYZ",
+            Self::LAB => "CIE L*a*b*",
+            Self::LCH => "CIE L*C*Hab",
+            Self::OKLAB => "Oklab",
+            Self::OKLCH => "Oklch",
+        }))
     }
 }
 
@@ -230,6 +240,35 @@ impl PartialOrd for Space {
         })
     }
 }
+
+impl Space {
+    /// Returns 3 channels letters for user-facing colorspace controls
+    pub fn channels(&self) -> [char; 3] {
+        match self {
+            Space::SRGB => ['r', 'g', 'b'],
+            Space::HSV => ['h', 's', 'v'],
+            Space::LRGB => ['r', 'g', 'b'],
+            Space::XYZ => ['x', 'y', 'z'],
+            Space::LAB => ['l', 'a', 'b'],
+            Space::LCH => ['l', 'c', 'h'],
+            Space::OKLAB => ['l', 'a', 'b'],
+            Space::OKLCH => ['l', 'c', 'h'],
+        }
+    }
+
+    /// All color spaces
+    pub const ALL: [Space; 8] = [Space::SRGB, Space::HSV, Space::LRGB, Space::XYZ, Space::LAB, Space::LCH, Space::OKLAB, Space::OKLCH];
+
+    /// Uniform color spaces
+    pub const UCS: [Space; 2] = [Space::LAB, Space::OKLAB];
+
+    /// Uniform color spaces in cylindrical/polar format
+    pub const UCS_POLAR: [Space; 2] = [Space::LCH, Space::OKLCH];
+
+    /// RGB/Tristimulus color spaces
+    pub const TRI: [Space; 3] = [Space::SRGB, Space::LRGB, Space::XYZ];
+}
+
 
 // ### Space ### }}}
 
