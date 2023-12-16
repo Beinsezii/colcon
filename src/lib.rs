@@ -171,8 +171,8 @@ impl ToString for Space {
             Space::XYZ => String::from("xyz"),
             Space::LAB => String::from("lab"),
             Space::LCH => String::from("lch"),
-            Space::OKLAB => String::from("oklab"),
-            Space::OKLCH => String::from("oklch"),
+            Space::OKLAB => String::from("lab"),
+            Space::OKLCH => String::from("lch"),
         }
     }
 }
