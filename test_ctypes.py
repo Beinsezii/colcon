@@ -39,9 +39,8 @@ colcon.correct_gamma.argtypes = [ctypes.c_float]
 colcon.correct_gamma.restype = ctypes.c_float
 colcon.hk_comp_2023.argtypes = [cpixel]
 
-LRGB = [0.033105, 0.100482, 0.890006]
-
 SRGB = [0.20000000, 0.35000000, 0.95000000]
+LRGB = [0.03310477, 0.10048151, 0.89000541]
 HSV = [0.63333333, 0.78947368, 0.95000000]
 XYZ = [0.21023057, 0.14316084, 0.85856646]
 LAB = [44.68286380, 40.81934559, -80.13283179]

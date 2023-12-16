@@ -630,13 +630,12 @@ pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
 mod tests {
     use super::*;
 
-    // consts without colour-science references
     const HEX: &str = "#3359F2";
     const IRGB: [u8; 3] = [51, 89, 242];
-    const LRGB: [f32; 3] = [0.033105, 0.100482, 0.890006];
 
     // colour-science references
     const SRGB: [f32; 3] = [0.20000000, 0.35000000, 0.95000000];
+    const LRGB: [f32; 3] = [0.03310477, 0.10048151, 0.89000541];
     const HSV: [f32; 3] = [0.63333333, 0.78947368, 0.95000000];
     const XYZ: [f32; 3] = [0.21023057, 0.14316084, 0.85856646];
     const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];

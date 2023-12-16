@@ -4,6 +4,7 @@ import numpy as np
 
 d65 = colour.xyY_to_XYZ(colour.xy_to_xyY(colour.CCS_ILLUMINANTS["CIE 1931 2 Degree Standard Observer"]["D65"]))
 srgb = np.array([0.2, 0.35, 0.95], dtype=np.float64)
+lrgb = colour.models.eotf_sRGB(srgb)
 hsv = colour.RGB_to_HSV(srgb)
 xyz = colour.sRGB_to_XYZ(srgb)
 lab = colour.XYZ_to_Lab(xyz)
@@ -16,6 +17,7 @@ rustprint = lambda id, arr: print(f"const {id.upper()}: [f32; 3] = [{arr[0]:.8f}
 print()
 
 rustprint('srgb', srgb)
+rustprint('lrgb', lrgb)
 rustprint('hsv', hsv)
 rustprint('xyz', xyz)
 rustprint('lab', lab)
@@ -26,6 +28,7 @@ pyprint = lambda id, arr: print(f"{id.upper()} = [{arr[0]:.8f}, {arr[1]:.8f}, {a
 print()
 
 pyprint('srgb', srgb)
+pyprint('lrgb', lrgb)
 pyprint('hsv', hsv)
 pyprint('xyz', xyz)
 pyprint('lab', lab)
