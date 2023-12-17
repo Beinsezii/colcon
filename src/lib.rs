@@ -157,7 +157,7 @@ pub enum Space {
     XYZ,
 
     /// CIE L*a*b*. Lightness, red/green chromacity, yellow/blue chromacity.
-    /// Old UCS with many known flaws
+    /// 1976 UCS with many known flaws. Most other LAB spaces derive from this
     LAB,
 
     /// CIE L*C*Hab. Lightness, Chroma, Hue
@@ -165,7 +165,7 @@ pub enum Space {
     LCH,
 
     /// Oklab <https://bottosson.github.io/posts/oklab/>
-    /// Modern UCS, used in CSS Color Module Level 4
+    /// 2020 UCS, used in CSS Color Module Level 4
     OKLAB,
 
     /// Cylindrical version of OKLAB.
