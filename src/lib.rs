@@ -344,7 +344,7 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                     pixels.iter_mut().for_each(|pixel| xyz_to_oklab(pixel));
                     convert_space_chunked(Space::OKLAB, to, pixels)
                 }
-                _ => unreachable!("XYZ tried to promote to {}", to.to_string()),
+                _ => unreachable!("XYZ tried to promote to {}", to),
             },
             Space::LAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
             Space::OKLAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
