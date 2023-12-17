@@ -125,15 +125,15 @@ fn hk_2023_fr(h: f32) -> f32 {
 /// Returns difference in perceptual lightness based on hue, aka the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
 #[no_mangle]
-pub extern "C" fn hk_delta_2023(lch: &[f32; 3]) -> f32 {
+pub extern "C" fn hk_high2023(lch: &[f32; 3]) -> f32 {
     (hk_2023_fby(lch[2]) + hk_2023_fr(lch[2])) * lch[1]
 }
 
 /// Compensates LCH's L value for the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
 #[no_mangle]
-pub extern "C" fn hk_comp_2023(lch: &mut [f32; 3]) {
-    lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_delta_2023(lch)
+pub extern "C" fn hk_high2023_comp(lch: &mut [f32; 3]) {
+    lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_high2023(lch)
 }
 
 // ### Helmholtz-Kohlrausch ### }}}
