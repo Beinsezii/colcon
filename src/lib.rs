@@ -218,7 +218,7 @@ impl PartialOrd for Space {
             Space::LCH => Ordering::Greater,
             Space::OKLCH => Ordering::Greater,
 
-            // Common to LAB Branches
+            // Common intermittents
             Space::LRGB => match other {
                 Space::SRGB | Space::HSV => Ordering::Greater,
                 _ => Ordering::Less,
