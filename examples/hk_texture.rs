@@ -1,4 +1,4 @@
-use colcon::{convert_space, hk_comp_2023, srgb_to_irgb};
+use colcon::{convert_space, hk_high2023_comp, srgb_to_irgb};
 
 fn main() {
     const TX_WIDTH: usize = 72;
@@ -18,7 +18,7 @@ fn main() {
                 lc, lc, h
             ];
             pixels[y][x] = pixel;
-            hk_comp_2023(&mut pixel);
+            hk_high2023_comp(&mut pixel);
             pixels[y][x+TX_WIDTH+GAP] = pixel
         }
     }

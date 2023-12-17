@@ -1,4 +1,4 @@
-use colcon::{convert_space, hk_comp_2023, srgb_to_irgb};
+use colcon::{convert_space, hk_high2023_comp, srgb_to_irgb};
 
 fn main() {
     const SQUARE: usize = 3;
@@ -17,7 +17,7 @@ fn main() {
         .unwrap();
 
     let mut lch_hk_2023 = lch;
-    lch_hk_2023.iter_mut().for_each(|pixel| hk_comp_2023(pixel));
+    lch_hk_2023.iter_mut().for_each(|pixel| hk_high2023_comp(pixel));
 
     for (ln, lch) in [lch, lch_hk_2023].iter().enumerate() {
         let i = ln * (SQUARE + GAP);
