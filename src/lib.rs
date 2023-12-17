@@ -76,7 +76,6 @@ pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
 /// Expand gamma of a single value to linear light
-#[inline]
 #[no_mangle]
 pub extern "C" fn expand_gamma(n: f32) -> f32 {
     if n <= 0.04045 {
@@ -87,7 +86,6 @@ pub extern "C" fn expand_gamma(n: f32) -> f32 {
 }
 
 /// Gamma corrects a single linear light value
-#[inline]
 #[no_mangle]
 pub extern "C" fn correct_gamma(n: f32) -> f32 {
     if n <= 0.0031308 {
@@ -108,12 +106,10 @@ const K_HIGH2022: [f32; 4] = [0.1644, 0.0603, 0.1307, 0.0060];
 /// Cannot make a const fn: https://github.com/rust-lang/rust/issues/57241
 pub const HIGH2023_MEAN: f32 = 20.956442;
 
-#[inline]
 fn hk_2023_fby(h: f32) -> f32 {
     K_HIGH2022[0] * ((h - 90.0) / 2.0).to_radians().sin().abs() + K_HIGH2022[1]
 }
 
-#[inline]
 fn hk_2023_fr(h: f32) -> f32 {
     if h <= 90.0 || h >= 270.0 {
         K_HIGH2022[2] * h.to_radians().cos().abs() + K_HIGH2022[3]
