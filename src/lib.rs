@@ -22,10 +22,18 @@ const XYZ65_MAT: [[f32; 3]; 3] = [
     [0.0193, 0.1192, 0.9505],
 ];
 
+// Original commonly used inverted array
+// const XYZ65_MAT_INV: [[f32; 3]; 3] = [
+//     [3.2406, -1.5372, -0.4986],
+//     [-0.9689, 1.8758, 0.0415],
+//     [0.0557, -0.2040, 1.0570],
+// ];
+
+// Higher precision invert using numpy. Helps with back conversions
 const XYZ65_MAT_INV: [[f32; 3]; 3] = [
-    [3.2406, -1.5372, -0.4986],
-    [-0.9689, 1.8758, 0.0415],
-    [0.0557, -0.2040, 1.0570],
+    [ 3.2406254773, -1.5372079722, -0.4986285987],
+    [-0.9689307147,  1.8757560609,  0.0415175238],
+    [ 0.0557101204, -0.2040210506,  1.0569959423],
 ];
 
 // OKLAB
@@ -705,7 +713,7 @@ mod tests {
     }
 
     fn pixcmp(a: [f32; 3], b: [f32; 3]) {
-        pixcmp_eps(a, b, 1e-4)
+        pixcmp_eps(a, b, 1e-5)
     }
 
     #[test]
@@ -820,7 +828,7 @@ mod tests {
         lab_to_lch(&mut oklch);
 
         // the hundred conversions gradually decreases accuracy
-        let eps = 1e-2;
+        let eps = 1e-4;
 
         // forwards
         println!("HSV -> LCH");

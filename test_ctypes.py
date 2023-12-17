@@ -49,7 +49,7 @@ LCH = [44.68286380, 89.93047151, 296.99411238]
 OKLAB = [0.53893206, -0.01239956, -0.23206808]
 
 def pixcmp(a, b):
-    epsilon = 1e-4
+    epsilon = 1e-5
     for (ac, bc) in zip(a, b):
         if abs(ac - bc) > epsilon:
             print(f"\nFAIL:\n[{a[0]:.8f}, {a[1]:.8f}, {a[2]:.8f}]\n[{b[0]:.8f}, {b[1]:.8f}, {b[2]:.8f}]\n")
