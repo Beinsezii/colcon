@@ -31,9 +31,9 @@ const XYZ65_MAT: [[f32; 3]; 3] = [
 
 // Higher precision invert using numpy. Helps with back conversions
 const XYZ65_MAT_INV: [[f32; 3]; 3] = [
-    [ 3.2406254773, -1.5372079722, -0.4986285987],
-    [-0.9689307147,  1.8757560609,  0.0415175238],
-    [ 0.0557101204, -0.2040210506,  1.0569959423],
+    [3.2406254773, -1.5372079722, -0.4986285987],
+    [-0.9689307147, 1.8757560609, 0.0415175238],
+    [0.0557101204, -0.2040210506, 1.0569959423],
 ];
 
 // OKLAB
@@ -56,6 +56,29 @@ const OKLAB_M2_INV: [[f32; 3]; 3] = [
     [0.9999999985, 1.0000000089, 1.0000000547],
     [0.3963377922, -0.1055613423, -0.0894841821],
     [0.2158037581, -0.0638541748, -1.2914855379],
+];
+
+// JzAzBz
+const JZAZBZ_M1: [[f32; 3]; 3] = [
+    [0.41478972, 0.579999, 0.0146480],
+    [-0.2015100, 1.120649, 0.0531008],
+    [-0.0166008, 0.264800, 0.6684799],
+];
+const JZAZBZ_M2: [[f32; 3]; 3] = [
+    [0.500000, 0.500000, 0.000000],
+    [3.524000, -4.066708, 0.542708],
+    [0.199076, 1.096799, -1.295875],
+];
+
+const JZAZBZ_M1_INV: [[f32; 3]; 3] = [
+    [1.9242264358, -1.0047923126, 0.037651404],
+    [0.3503167621, 0.7264811939, -0.0653844229],
+    [-0.090982811, -0.3127282905, 1.5227665613],
+];
+const JZAZBZ_M2_INV: [[f32; 3]; 3] = [
+    [1., 0.1386050433, 0.0580473162],
+    [1., -0.1386050433, -0.0580473162],
+    [1., -0.096019242, -0.8118918961],
 ];
 /// 3 * 3x3 Matrix multiply
 fn matmul3(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
@@ -195,16 +218,22 @@ impl TryFrom<&str> for Space {
 
 impl core::fmt::Display for Space {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::write(f, core::format_args!("{}", match self {
-            Self::SRGB => "sRGB",
-            Self::HSV => "HSV",
-            Self::LRGB => "RGB",
-            Self::XYZ => "CIE XYZ",
-            Self::LAB => "CIE L*a*b*",
-            Self::LCH => "CIE L*C*Hab",
-            Self::OKLAB => "Oklab",
-            Self::OKLCH => "Oklch",
-        }))
+        core::fmt::write(
+            f,
+            core::format_args!(
+                "{}",
+                match self {
+                    Self::SRGB => "sRGB",
+                    Self::HSV => "HSV",
+                    Self::LRGB => "RGB",
+                    Self::XYZ => "CIE XYZ",
+                    Self::LAB => "CIE L*a*b*",
+                    Self::LCH => "CIE L*C*Hab",
+                    Self::OKLAB => "Oklab",
+                    Self::OKLCH => "Oklch",
+                }
+            ),
+        )
     }
 }
 
@@ -261,7 +290,16 @@ impl Space {
     }
 
     /// All color spaces
-    pub const ALL: [Space; 8] = [Space::SRGB, Space::HSV, Space::LRGB, Space::XYZ, Space::LAB, Space::LCH, Space::OKLAB, Space::OKLCH];
+    pub const ALL: [Space; 8] = [
+        Space::SRGB,
+        Space::HSV,
+        Space::LRGB,
+        Space::XYZ,
+        Space::LAB,
+        Space::LCH,
+        Space::OKLAB,
+        Space::OKLCH,
+    ];
 
     /// Uniform color spaces
     pub const UCS: [Space; 2] = [Space::LAB, Space::OKLAB];
@@ -272,7 +310,6 @@ impl Space {
     /// RGB/Tristimulus color spaces
     pub const TRI: [Space; 3] = [Space::SRGB, Space::LRGB, Space::XYZ];
 }
-
 
 // ### Space ### }}}
 
@@ -536,6 +573,35 @@ pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
     *pixel = matmul3(lms, OKLAB_M2);
 }
 
+/// Convert CIE XYZ to JzAzBz
+/// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
+#[no_mangle]
+pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
+    // referenced in paper
+    let n = 2610.0 / 2.0f32.powi(14);
+    let p = 1.7 * 2523.0 / 2.0f32.powi(5);
+    let d = -0.56;
+
+    // from their matlab code
+    // https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
+    let b = 1.15;
+    let g = 0.66;
+    let c1 = 3424.0 / 2.0f32.powi(12);
+    let c2 = 2413.0 / 2.0f32.powi(7);
+    let c3 = 2392.0 / 2.0f32.powi(7);
+
+    pixel[0] = pixel[0] * b - (b - 1.0) * pixel[2];
+    pixel[1] = pixel[1] * b - (g - 1.0) * pixel[0];
+    let mut lms = matmul3(*pixel, JZAZBZ_M1);
+    lms.iter_mut().for_each(|c| {
+        *c = (*c / 10000.0).powf(n);
+        *c = (c1 + c2 * *c) / (1.0 + c3 * *c);
+        *c = c.powf(p)
+    });
+    let lab = matmul3(lms, JZAZBZ_M2);
+    *pixel = [((1.0 + d) * lab[0]) / (1.0 + d * lab[0]), lab[1], lab[2]]
+}
+
 /// Convert from CIE LAB to CIE LCH.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
@@ -699,7 +765,9 @@ mod tests {
     const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
     const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
     const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
-    // no OKLCH test as it's the same as CIE LCH
+    const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
+    const ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
+    const JZAZBZ: [f32; 3] = [0.00601244, -0.00145433, -0.01984568];
 
     fn pixcmp_eps(a: [f32; 3], b: [f32; 3], eps: f32) {
         a.iter().zip(b.iter()).for_each(|(ac, bc)| {
@@ -799,6 +867,20 @@ mod tests {
         oklab_to_xyz(&mut pixel);
         pixcmp(pixel, XYZ);
     }
+
+    #[test]
+    fn jzazbz_to() {
+        let mut pixel = XYZ;
+        xyz_to_jzazbz(&mut pixel);
+        pixcmp(pixel, JZAZBZ);
+    }
+
+    // #[test]
+    // fn jzazbz_from() {
+    //     let mut pixel = JZAZBZ;
+    //     oklab_to_xyz(&mut pixel);
+    //     pixcmp(pixel, XYZ);
+    // }
 
     #[test]
     fn cielab_full() {
