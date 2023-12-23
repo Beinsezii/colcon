@@ -590,15 +590,21 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
     let c2 = 2413.0 / 2.0f32.powi(7);
     let c3 = 2392.0 / 2.0f32.powi(7);
 
+    pixel.iter_mut().for_each(|c| *c = c.max(0.0));
+
     pixel[0] = pixel[0] * b - (b - 1.0) * pixel[2];
     pixel[1] = pixel[1] * b - (g - 1.0) * pixel[0];
+
     let mut lms = matmul3(*pixel, JZAZBZ_M1);
+
     lms.iter_mut().for_each(|c| {
         *c = (*c / 10000.0).powf(n);
         *c = (c1 + c2 * *c) / (1.0 + c3 * *c);
         *c = c.powf(p)
     });
+
     let lab = matmul3(lms, JZAZBZ_M2);
+
     *pixel = [((1.0 + d) * lab[0]) / (1.0 + d * lab[0]), lab[1], lab[2]]
 }
 
@@ -734,6 +740,40 @@ pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
     let mut lms = matmul3(*pixel, OKLAB_M2_INV);
     lms.iter_mut().for_each(|c| *c = c.powi(3));
     *pixel = matmul3(lms, OKLAB_M1_INV);
+}
+
+/// Convert JzAzBz to CIE XYZ
+/// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
+/// Inverse formula mostly taken from their matlab reference code
+/// https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
+#[no_mangle]
+pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
+    // referenced in paper
+    let n = 2610.0 / 2.0f32.powi(14);
+    let p = 1.7 * 2523.0 / 2.0f32.powi(5);
+    let d = -0.56;
+
+    // from their matlab code
+    // https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
+    let b = 1.15;
+    let g = 0.66;
+    let c1 = 3424.0 / 2.0f32.powi(12);
+    let c2 = 2413.0 / 2.0f32.powi(7);
+    let c3 = 2392.0 / 2.0f32.powi(7);
+
+    let mut lms = matmul3(
+        [pixel[0] / (1.0 + d - d * pixel[0]), pixel[1], pixel[2]],
+        JZAZBZ_M2_INV,
+    );
+
+    lms.iter_mut().for_each(|c| {
+        *c = 10000.0 * ((c1 - c.powf(1.0 / p)) / (c3 * c.powf(1.0 / p) - c2)).powf(1.0 / n);
+    });
+
+    *pixel = matmul3(lms, JZAZBZ_M1_INV);
+
+    pixel[0] = (pixel[0] + (b - 1.0) * pixel[2]) / b;
+    pixel[1] = (pixel[1] + (g - 1.0) * pixel[0]) / g;
 }
 
 /// Convert from CIE LCH to CIE LAB.
@@ -875,12 +915,12 @@ mod tests {
         pixcmp(pixel, JZAZBZ);
     }
 
-    // #[test]
-    // fn jzazbz_from() {
-    //     let mut pixel = JZAZBZ;
-    //     oklab_to_xyz(&mut pixel);
-    //     pixcmp(pixel, XYZ);
-    // }
+    #[test]
+    fn jzazbz_from() {
+        let mut pixel = JZAZBZ;
+        jzazbz_to_xyz(&mut pixel);
+        pixcmp(pixel, XYZ);
+    }
 
     #[test]
     fn cielab_full() {
