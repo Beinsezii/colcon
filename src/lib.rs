@@ -14,6 +14,33 @@
 use core::cmp::Ordering;
 use core::ffi::{c_char, CStr};
 
+// ### CONSTS ### {{{
+
+/// Standard Illuminant D65.
+pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
+
+// CIE LAB
+const LAB_DELTA: f32 = 6.0 / 29.0;
+
+// JzAzBz
+const JZAZBZ_B: f32 = 1.15;
+const JZAZBZ_G: f32 = 0.66;
+const JZAZBZ_D: f32 = -0.56;
+const JZAZBZ_D0: f32 = 1.6295499532821566 * 1e-11;
+// const JZAZBZ_N: f32 = 2610.0 / 2.0f32.powi(14);
+// const JZAZBZ_P: f32 = 1.7 * 2523.0 / 2.0f32.powi(5);
+// const JZAZBZ_C1: f32 = 3424.0 / 2.0f32.powi(12);
+// const JZAZBZ_C2: f32 = 2413.0 / 2.0f32.powi(7);
+// const JZAZBZ_C3: f32 = 2392.0 / 2.0f32.powi(7);
+// Pre-computed values for the above using f64 truncated to 10 points
+const JZAZBZ_N: f32 = 0.1593017578;
+const JZAZBZ_P: f32 = 134.034375;
+const JZAZBZ_C1: f32 = 0.8359375;
+const JZAZBZ_C2: f32 = 18.8515625;
+const JZAZBZ_C3: f32 = 18.6875;
+
+// ### CONSTS ### }}}
+
 // ### MATRICES ### {{{
 // CIE XYZ
 const XYZ65_MAT: [[f32; 3]; 3] = [
@@ -100,11 +127,6 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 // ### MATRICES ### }}}
 
 // ### UTILITIES ### {{{
-
-/// Standard Illuminant D65.
-pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
-
-const LAB_DELTA: f32 = 6.0 / 29.0;
 
 /// Expand gamma of a single value to linear light
 #[no_mangle]
@@ -577,35 +599,28 @@ pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
 #[no_mangle]
 pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
-    // referenced in paper
-    let n = 2610.0 / 2.0f32.powi(14);
-    let p = 1.7 * 2523.0 / 2.0f32.powi(5);
-    let d = -0.56;
-
-    // from their matlab code
-    // https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
-    let b = 1.15;
-    let g = 0.66;
-    let c1 = 3424.0 / 2.0f32.powi(12);
-    let c2 = 2413.0 / 2.0f32.powi(7);
-    let c3 = 2392.0 / 2.0f32.powi(7);
-
-    pixel.iter_mut().for_each(|c| *c = c.max(0.0));
-
-    pixel[0] = pixel[0] * b - (b - 1.0) * pixel[2];
-    pixel[1] = pixel[1] * b - (g - 1.0) * pixel[0];
-
-    let mut lms = matmul3(*pixel, JZAZBZ_M1);
+    let mut lms = matmul3(
+        [
+            pixel[0] * JZAZBZ_B - (JZAZBZ_B - 1.0) * pixel[2],
+            pixel[1] * JZAZBZ_G - (JZAZBZ_G - 1.0) * pixel[0],
+            pixel[2],
+        ],
+        JZAZBZ_M1,
+    );
 
     lms.iter_mut().for_each(|c| {
-        *c = (*c / 10000.0).powf(n);
-        *c = (c1 + c2 * *c) / (1.0 + c3 * *c);
-        *c = c.powf(p)
+        *c = (*c / 10000.0).powf(JZAZBZ_N);
+        *c = (JZAZBZ_C1 + JZAZBZ_C2 * *c) / (1.0 + JZAZBZ_C3 * *c);
+        *c = c.powf(JZAZBZ_P)
     });
 
     let lab = matmul3(lms, JZAZBZ_M2);
 
-    *pixel = [((1.0 + d) * lab[0]) / (1.0 + d * lab[0]), lab[1], lab[2]]
+    *pixel = [
+        ((1.0 + JZAZBZ_D) * lab[0]) / (1.0 + JZAZBZ_D * lab[0]) - JZAZBZ_D0,
+        lab[1],
+        lab[2],
+    ]
 }
 
 /// Convert from CIE LAB to CIE LCH.
@@ -748,32 +763,26 @@ pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
 /// https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
 #[no_mangle]
 pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
-    // referenced in paper
-    let n = 2610.0 / 2.0f32.powi(14);
-    let p = 1.7 * 2523.0 / 2.0f32.powi(5);
-    let d = -0.56;
-
-    // from their matlab code
-    // https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
-    let b = 1.15;
-    let g = 0.66;
-    let c1 = 3424.0 / 2.0f32.powi(12);
-    let c2 = 2413.0 / 2.0f32.powi(7);
-    let c3 = 2392.0 / 2.0f32.powi(7);
-
     let mut lms = matmul3(
-        [pixel[0] / (1.0 + d - d * pixel[0]), pixel[1], pixel[2]],
+        [
+            (pixel[0] + JZAZBZ_D0) / (1.0 + JZAZBZ_D - JZAZBZ_D * (pixel[0] + JZAZBZ_D0)),
+            pixel[1],
+            pixel[2],
+        ],
         JZAZBZ_M2_INV,
     );
 
     lms.iter_mut().for_each(|c| {
-        *c = 10000.0 * ((c1 - c.powf(1.0 / p)) / (c3 * c.powf(1.0 / p) - c2)).powf(1.0 / n);
+        *c = 10000.0
+            * ((JZAZBZ_C1 - c.powf(1.0 / JZAZBZ_P))
+                / (JZAZBZ_C3 * c.powf(1.0 / JZAZBZ_P) - JZAZBZ_C2))
+                .powf(1.0 / JZAZBZ_N);
     });
 
     *pixel = matmul3(lms, JZAZBZ_M1_INV);
 
-    pixel[0] = (pixel[0] + (b - 1.0) * pixel[2]) / b;
-    pixel[1] = (pixel[1] + (g - 1.0) * pixel[0]) / g;
+    pixel[0] = (pixel[0] + (JZAZBZ_B - 1.0) * pixel[2]) / JZAZBZ_B;
+    pixel[1] = (pixel[1] + (JZAZBZ_G - 1.0) * pixel[0]) / JZAZBZ_G;
 }
 
 /// Convert from CIE LCH to CIE LAB.
@@ -805,8 +814,8 @@ mod tests {
     const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
     const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
     const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
-    const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
-    const ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
+    const _CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
+    const _ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
     const JZAZBZ: [f32; 3] = [0.00601244, -0.00145433, -0.01984568];
 
     fn pixcmp_eps(a: [f32; 3], b: [f32; 3], eps: f32) {
