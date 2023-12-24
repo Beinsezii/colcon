@@ -1,16 +1,16 @@
-# ColCon 0.4.1
+# ColCon 0.5.0
 Simple colorspace conversions in Rust.
 
 ## Features
   * Pure Rust, no dependencies.
   * Most functions compile to a C lib
-  * SRGB, HSV, XYZ, CIE LAB, OKLAB
-    + LCH versions of LAB spaces
-  * Accurate to 1e-4 minimum, referencing [colour-science](https://github.com/colour-science/colour)
+  * sRGB, HSV, CIE XYZ, CIE L*a*b*, Oklab, JzAzBz
+    + Cylindrical versions of all LAB-adjacent spaces
+  * Accurate to 1e-5 minimum, referencing [colour-science](https://github.com/colour-science/colour)
 
 ## Future
   * Look into SIMD when supported by standard library
-  * More spaces
+  * More spaces?
   * Generic dtypes?
 
 ## Known Issues
