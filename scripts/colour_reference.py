@@ -2,8 +2,25 @@
 import colour
 import numpy as np
 
+def rustprint(id, arr):
+    layers = ""
+    for a in arr:
+        layers += f"    [{a[0]:.8f}, {a[1]:.8f}, {a[2]:.8f}],\n"
+    print(f"const {id.upper()}: &'static [[f32; 3]] = &[\n{layers}];")
+
 d65 = colour.xyY_to_XYZ(colour.xy_to_xyY(colour.CCS_ILLUMINANTS["CIE 1931 2 Degree Standard Observer"]["D65"]))
-srgb = np.array([0.2, 0.35, 0.95], dtype=np.float64)
+srgb = np.array([
+    [0.0, 0.0, 0.0],
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.0],
+    [1.0, 1.0, 0.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [1.0, 1.0, 1.0],
+    [5.0, 10.0, 15.0],
+    [-5.0, -10.0, -15.0],
+    ], dtype=np.float32)
 lrgb = colour.models.eotf_sRGB(srgb)
 hsv = colour.RGB_to_HSV(srgb)
 xyz = colour.sRGB_to_XYZ(srgb)
@@ -21,7 +38,6 @@ ictcp2 = colour.XYZ_to_ICtCp(xyz, method='ITU-R BT.2100-2 PQ')
 
 print(f"pub const D65: [f32; 3] = [{d65[0]}, {d65[1]}, {d65[2]}];")
 
-rustprint = lambda id, arr: print(f"const {id.upper()}: [f32; 3] = [{arr[0]:.8f}, {arr[1]:.8f}, {arr[2]:.8f}];")
 print()
 
 rustprint('srgb', srgb)

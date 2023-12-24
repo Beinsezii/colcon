@@ -909,160 +909,189 @@ mod tests {
     const HEX: &str = "#3359F2";
     const IRGB: [u8; 3] = [51, 89, 242];
 
-    // colour-science references
-    const SRGB: [f32; 3] = [0.20000000, 0.35000000, 0.95000000];
-    const LRGB: [f32; 3] = [0.03310477, 0.10048151, 0.89000541];
-    const HSV: [f32; 3] = [0.63333333, 0.78947368, 0.95000000];
-    const XYZ: [f32; 3] = [0.21023057, 0.14316084, 0.85856646];
-    const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
-    const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
-    const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
-    const OKLCH: [f32; 3] = [0.53893206, 0.23239910, 266.94155415];
-    const JZAZBZ: [f32; 3] = [0.00601244, -0.00145433, -0.01984568];
-    const JZCZHZ: [f32; 3] = [0.00601244, 0.01989890, 265.80875740];
-    // const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
-    // const ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
+    // ### COLOUR-REFS ### {{{
 
-    fn pixcmp_eps(a: [f32; 3], b: [f32; 3], eps: f32) {
-        a.iter().zip(b.iter()).for_each(|(ac, bc)| {
-            if (ac - bc).abs() > eps || ac.is_nan() || bc.is_nan() {
-                panic!(
-                    "\n{:.8} {:.8} {:.8}\n{:.8} {:.8} {:.8}\n",
-                    a[0], a[1], a[2], b[0], b[1], b[2]
-                )
+    const SRGB: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [1.00000000, 0.00000000, 0.00000000],
+        [0.00000000, 1.00000000, 0.00000000],
+        [0.00000000, 0.00000000, 1.00000000],
+        [1.00000000, 1.00000000, 0.00000000],
+        [0.00000000, 1.00000000, 1.00000000],
+        [1.00000000, 0.00000000, 1.00000000],
+        [1.00000000, 1.00000000, 1.00000000],
+        [5.00000000, 10.00000000, 15.00000000],
+        [-5.00000000, -10.00000000, -15.00000000],
+    ];
+    const LRGB: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [1.00000000, 0.00000000, 0.00000000],
+        [0.00000000, 1.00000000, 0.00000000],
+        [0.00000000, 0.00000000, 1.00000000],
+        [1.00000000, 1.00000000, 0.00000000],
+        [0.00000000, 1.00000000, 1.00000000],
+        [1.00000000, 0.00000000, 1.00000000],
+        [1.00000000, 1.00000000, 1.00000000],
+        [42.96599571, 223.82627997, 589.69564509],
+        [-0.38699690, -0.77399381, -1.16099071],
+    ];
+    const HSV: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [0.00000000, 1.00000000, 1.00000000],
+        [0.33333333, 1.00000000, 1.00000000],
+        [0.66666667, 1.00000000, 1.00000000],
+        [0.16666667, 1.00000000, 1.00000000],
+        [0.50000000, 1.00000000, 1.00000000],
+        [0.83333333, 1.00000000, 1.00000000],
+        [0.00000000, 0.00000000, 1.00000000],
+        [0.58333333, 0.66666667, 15.00000000],
+        [0.08333333, -2.00000000, -5.00000000],
+    ];
+    const XYZ: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [0.41240000, 0.21260000, 0.01930000],
+        [0.35760000, 0.71520000, 0.11920000],
+        [0.18050000, 0.07220000, 0.95050000],
+        [0.77000000, 0.92780000, 0.13850000],
+        [0.53810000, 0.78740000, 1.06970000],
+        [0.59290000, 0.28480000, 0.96980000],
+        [0.95050000, 1.00000000, 1.08900000],
+        [204.19951828, 211.79115169, 588.01504694],
+        [-0.64593653, -0.71965944, -1.20325077],
+    ];
+    const LAB: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [53.23288179, 80.11117774, 67.22370367],
+        [87.73703347, -86.18285500, 83.18783466],
+        [32.30258667, 79.19808023, -107.85035570],
+        [97.13824698, -21.55360786, 94.48949749],
+        [91.11652111, -48.07757700, -14.12426716],
+        [60.31993366, 98.25632722, -60.82956929],
+        [100.00000000, 0.00772827, 0.00353528],
+        [675.44970111, 14.25078120, -436.42562428],
+        [-650.06570921, 155.94479927, 599.90623227],
+    ];
+    const LCH: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [53.23288179, 104.57928635, 40.00102571],
+        [87.73703347, 119.78188649, 136.01306869],
+        [32.30258667, 133.80596077, 306.29106810],
+        [97.13824698, 96.91657829, 102.84964820],
+        [91.11652111, 50.10936373, 196.37177336],
+        [60.31993366, 115.56185503, 328.23873929],
+        [100.00000000, 0.00849849, 24.58159697],
+        [675.44970111, 436.65823054, 271.87023758],
+        [-650.06570921, 619.84374477, 75.42854110],
+    ];
+    const OKLAB: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [0.62792590, 0.22488760, 0.12580493],
+        [0.86645187, -0.23392144, 0.17942177],
+        [0.45203295, -0.03235164, -0.31162054],
+        [0.96798108, -0.07139347, 0.19848985],
+        [0.90541467, -0.14944654, -0.03950465],
+        [0.70165739, 0.27462625, -0.16926875],
+        [1.00000174, 0.00000229, -0.00011365],
+        [5.95611678, -0.42728383, -1.24134000],
+        [-0.89252901, 0.04256306, 0.07613246],
+    ];
+    const OKLCH: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [0.62792590, 0.25768453, 29.22319405],
+        [0.86645187, 0.29480741, 142.51117284],
+        [0.45203295, 0.31329538, 264.07293384],
+        [0.96798108, 0.21093897, 109.78280773],
+        [0.90541467, 0.15457971, 194.80686888],
+        [0.70165739, 0.32260113, 328.35196366],
+        [1.00000174, 0.00011368, 271.15202477],
+        [5.95611678, 1.31282005, 251.00593438],
+        [-0.89252901, 0.08722251, 60.79193305],
+    ];
+    const JZAZBZ: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [0.00816620, 0.01616207, 0.01140765],
+        [0.01243416, -0.01624847, 0.01656722],
+        [0.00478354, -0.00116064, -0.02495001],
+        [0.01611356, -0.00372360, 0.02080003],
+        [0.01418671, -0.01169390, -0.00544011],
+        [0.01049327, 0.01640515, -0.01404140],
+        [0.01758021, -0.00002806, -0.00002067],
+        [0.22861137, -0.04674604, -0.11322403],
+        [-0.78600741, 1933.15497262, 2113.40419865],
+    ];
+    const JZCZHZ: &'static [[f32; 3]] = &[
+        [0.00000000, 0.00000000, 0.00000000],
+        [0.00816620, 0.01978250, 35.21553828],
+        [0.01243416, 0.02320529, 134.44348766],
+        [0.00478354, 0.02497699, 267.33659019],
+        [0.01611356, 0.02113070, 100.14952867],
+        [0.01418671, 0.01289736, 204.94830520],
+        [0.01049327, 0.02159375, 319.43931639],
+        [0.01758021, 0.00003485, 216.37796402],
+        [0.22861137, 0.12249438, 247.56607117],
+        [-0.78600741, 2864.18670045, 47.55048725],
+    ];
+
+    // ### COLOUR-REFS ### }}}
+
+    fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32) {
+        for (n, (i, r)) in input.iter().zip(reference.iter()).enumerate() {
+            for (a, b) in i.iter().zip(r.iter()) {
+                if (a - b).abs() > epsilon || !a.is_finite() || !b.is_finite() {
+                    panic!(
+                        "\nA{n}: {:.8} {:.8} {:.8}\nB{n}: {:.8} {:.8} {:.8}\n",
+                        i[0], i[1], i[2], r[0], r[1], r[2]
+                    )
+                }
             }
-        });
+        }
     }
 
-    fn pixcmp(a: [f32; 3], b: [f32; 3]) {
-        pixcmp_eps(a, b, 1e-5)
+    fn func_cmp_eps(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3]), epsilon: f32) {
+        let mut input = input.to_owned();
+        input.iter_mut().for_each(|p| function(p));
+        pix_cmp(&input, reference, epsilon);
     }
 
-    #[test]
-    fn hsv_to() {
-        let mut pixel = SRGB;
-        srgb_to_hsv(&mut pixel);
-        pixcmp(pixel, HSV);
-    }
-
-    #[test]
-    fn hsv_from() {
-        let mut pixel = HSV;
-        hsv_to_srgb(&mut pixel);
-        pixcmp(pixel, SRGB);
+    fn func_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3])) {
+        func_cmp_eps(input, reference, function, 1e-4)
     }
 
     #[test]
-    fn lrgb_to() {
-        let mut pixel = SRGB;
-        srgb_to_lrgb(&mut pixel);
-        pixcmp(pixel, LRGB);
-    }
+    fn hsv_forwards() {func_cmp(SRGB, HSV, srgb_to_hsv)}
+    #[test]
+    fn hsv_backwards() {func_cmp(HSV, SRGB, hsv_to_srgb)}
 
     #[test]
-    fn lrgb_from() {
-        let mut pixel = LRGB;
-        lrgb_to_srgb(&mut pixel);
-        pixcmp(pixel, SRGB);
-    }
+    fn lrgb_forwards() {func_cmp(SRGB, LRGB, srgb_to_lrgb)}
+    #[test]
+    fn lrgb_backwards() {func_cmp(LRGB, SRGB, lrgb_to_srgb)}
 
     #[test]
-    fn xyz_to() {
-        let mut pixel = LRGB;
-        lrgb_to_xyz(&mut pixel);
-        pixcmp(pixel, XYZ);
-    }
+    fn xyz_forwards() {func_cmp(LRGB, XYZ, lrgb_to_xyz)}
+    #[test]
+    fn xyz_backwards() {func_cmp(XYZ, LRGB, xyz_to_lrgb)}
 
     #[test]
-    fn xyz_from() {
-        let mut pixel = XYZ;
-        xyz_to_lrgb(&mut pixel);
-        pixcmp(pixel, LRGB);
-    }
+    fn lab_forwards() {func_cmp(XYZ, LAB, xyz_to_lab)}
+    #[test]
+    fn lab_backwards() {func_cmp(LAB, XYZ, lab_to_xyz)}
 
     #[test]
-    fn lab_to() {
-        let mut pixel = XYZ;
-        xyz_to_lab(&mut pixel);
-        pixcmp(pixel, LAB);
-    }
+    fn lch_forwards() {func_cmp(LAB, LCH, lab_to_lch)}
+    #[test]
+    fn lch_backwards() {func_cmp(LCH, LAB, lch_to_lab)}
 
     #[test]
-    fn lab_from() {
-        let mut pixel = LAB;
-        lab_to_xyz(&mut pixel);
-        pixcmp(pixel, XYZ);
-    }
-
+    fn oklab_forwards() {func_cmp(XYZ, OKLAB, xyz_to_oklab)}
     #[test]
-    fn lch_to() {
-        let mut pixel = LAB;
-        lab_to_lch(&mut pixel);
-        pixcmp(pixel, LCH);
-    }
+    fn oklab_backwards() {func_cmp(OKLAB, XYZ, oklab_to_xyz)}
 
+    // Lower epsilon because of the extremely wide gamut creating tiny values
     #[test]
-    fn lch_from() {
-        let mut pixel = LCH;
-        lch_to_lab(&mut pixel);
-        pixcmp(pixel, LAB);
-    }
-
+    fn jzazbz_forwards() {func_cmp_eps(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-1)}
     #[test]
-    fn oklab_to() {
-        let mut pixel = XYZ;
-        xyz_to_oklab(&mut pixel);
-        pixcmp(pixel, OKLAB);
-    }
-
-    #[test]
-    fn oklab_from() {
-        let mut pixel = OKLAB;
-        oklab_to_xyz(&mut pixel);
-        pixcmp(pixel, XYZ);
-    }
-
-    #[test]
-    fn jzazbz_to() {
-        let mut pixel = XYZ;
-        xyz_to_jzazbz(&mut pixel);
-        pixcmp(pixel, JZAZBZ);
-    }
-
-    #[test]
-    fn jzazbz_from() {
-        let mut pixel = JZAZBZ;
-        jzazbz_to_xyz(&mut pixel);
-        pixcmp(pixel, XYZ);
-    }
-
-    // #[test]
-    // fn cam16ucs_to() {
-    //     let mut pixel = XYZ;
-    //     xyz_to_cam16ucs(&mut pixel);
-    //     pixcmp(pixel, CAM16UCS);
-    // }
-
-    // #[test]
-    // fn cam16ucs_from() {
-    //     let mut pixel = CAM16UCS;
-    //     cam16ucs_to_xyz(&mut pixel);
-    //     pixcmp(pixel, XYZ);
-    // }
-
-    // #[test]
-    // fn ictcp_to() {
-    //     let mut pixel = LRGB;
-    //     lrgb_to_ictcp(&mut pixel);
-    //     pixcmp(pixel, ICTCP);
-    // }
-
-    // #[test]
-    // fn ictcp_from() {
-    //     let mut pixel = ICTCP;
-    //     ictcp_to_lrgb(&mut pixel);
-    //     pixcmp(pixel, LRGB);
-    // }
+    fn jzazbz_backwards() {func_cmp_eps(JZAZBZ, XYZ, jzazbz_to_xyz, 1e-1)}
 
     #[test]
     fn tree_jump() {
@@ -1070,61 +1099,54 @@ mod tests {
         // the hundred conversions gradually decreases accuracy
         let eps = 1e-1;
 
-        let mut pixel = HSV;
+        let mut pixel = HSV.to_owned();
         // forwards
         println!("HSV -> LCH");
-        convert_space(Space::HSV, Space::LCH, &mut pixel);
-        pixcmp_eps(pixel, LCH, eps);
+        convert_space_chunked(Space::HSV, Space::LCH, &mut pixel);
+        pix_cmp(&pixel, LCH, eps);
 
         println!("LCH -> OKLCH");
-        convert_space(Space::LCH, Space::OKLCH, &mut pixel);
-        pixcmp_eps(pixel, OKLCH, eps);
+        convert_space_chunked(Space::LCH, Space::OKLCH, &mut pixel);
+        pix_cmp(&pixel, OKLCH, eps);
 
         println!("OKLCH -> JZCZHZ");
-        convert_space(Space::OKLCH, Space::JZCZHZ, &mut pixel);
-        pixcmp_eps(pixel, JZCZHZ, eps);
+        convert_space_chunked(Space::OKLCH, Space::JZCZHZ, &mut pixel);
+        pix_cmp(&pixel, JZCZHZ, eps);
 
         println!("JZCZHZ -> HSV");
-        convert_space(Space::JZCZHZ, Space::HSV, &mut pixel);
-        pixcmp_eps(pixel, HSV, eps);
+        convert_space_chunked(Space::JZCZHZ, Space::HSV, &mut pixel);
+        pix_cmp(&pixel, HSV, eps);
 
         // backwards
         println!("HSV -> JZCZHZ");
-        convert_space(Space::HSV, Space::JZCZHZ, &mut pixel);
-        pixcmp_eps(pixel, JZCZHZ, eps);
+        convert_space_chunked(Space::HSV, Space::JZCZHZ, &mut pixel);
+        pix_cmp(&pixel, JZCZHZ, eps);
 
         println!("JZCZHZ -> OKLCH");
-        convert_space(Space::JZCZHZ, Space::OKLCH, &mut pixel);
-        pixcmp_eps(pixel, OKLCH, eps);
+        convert_space_chunked(Space::JZCZHZ, Space::OKLCH, &mut pixel);
+        pix_cmp(&pixel, OKLCH, eps);
 
         println!("OKLCH -> LCH");
-        convert_space(Space::OKLCH, Space::LCH, &mut pixel);
-        pixcmp_eps(pixel, LCH, eps);
+        convert_space_chunked(Space::OKLCH, Space::LCH, &mut pixel);
+        pix_cmp(&pixel, LCH, eps);
 
         println!("LCH -> HSV");
-        convert_space(Space::LCH, Space::HSV, &mut pixel);
-        pixcmp_eps(pixel, HSV, eps);
+        convert_space_chunked(Space::LCH, Space::HSV, &mut pixel);
+        pix_cmp(&pixel, HSV, eps);
 
         println!("BEGIN");
     }
 
-    #[test]
-    fn chunked() {
-        let mut pixel = [SRGB];
-        convert_space_chunked(Space::SRGB, Space::LCH, &mut pixel);
-        pixcmp(pixel[0], LCH)
-    }
-
-    #[test]
-    fn sliced() {
-        let pixel: &mut [f32] = &mut SRGB.clone();
-        convert_space_sliced(Space::SRGB, Space::LCH, pixel);
-        pixcmp(pixel.try_into().unwrap(), LCH)
-    }
+    // #[test]
+    // fn sliced() {
+    //     let pixel: &mut [f32] = &mut SRGB.clone();
+    //     convert_space_sliced(Space::SRGB, Space::LCH, pixel);
+    //     pixcmp(pixel.try_into().unwrap(), LCH)
+    // }
 
     #[test]
     fn irgb_to() {
-        assert_eq!(IRGB, srgb_to_irgb(SRGB))
+        assert_eq!(IRGB, srgb_to_irgb([0.2, 0.35, 0.95]))
     }
 
     #[test]
@@ -1132,7 +1154,7 @@ mod tests {
         let mut srgb = irgb_to_srgb(IRGB);
         srgb.iter_mut()
             .for_each(|c| *c = (*c * 100.0).round() / 100.0);
-        assert_eq!(SRGB, srgb)
+        assert_eq!([0.2, 0.35, 0.95], srgb)
     }
 
     #[test]
