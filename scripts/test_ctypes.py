@@ -22,10 +22,12 @@ colcon.srgb_to_lrgb.argtypes = [cpixel]
 colcon.lrgb_to_xyz.argtypes = [cpixel]
 colcon.xyz_to_lab.argtypes = [cpixel]
 colcon.xyz_to_oklab.argtypes = [cpixel]
+colcon.xyz_to_jzazbz.argtypes = [cpixel]
 colcon.lab_to_lch.argtypes = [cpixel]
 
 # down
 colcon.lch_to_lab.argtypes = [cpixel]
+colcon.jzazbz_to_xyz.argtypes = [cpixel]
 colcon.oklab_to_xyz.argtypes = [cpixel]
 colcon.lab_to_xyz.argtypes = [cpixel]
 colcon.xyz_to_lrgb.argtypes = [cpixel]
@@ -47,6 +49,7 @@ XYZ = [0.21023057, 0.14316084, 0.85856646]
 LAB = [44.68286380, 40.81934559, -80.13283179]
 LCH = [44.68286380, 89.93047151, 296.99411238]
 OKLAB = [0.53893206, -0.01239956, -0.23206808]
+JZAZBZ = [0.00601244, -0.00145433, -0.01984568]
 
 def pixcmp(a, b):
     epsilon = 1e-5
@@ -76,6 +79,10 @@ pix = cpixel(*XYZ)
 colcon.xyz_to_oklab(pix)
 pixcmp(list(pix), OKLAB)
 
+pix = cpixel(*XYZ)
+colcon.xyz_to_jzazbz(pix)
+pixcmp(list(pix), JZAZBZ)
+
 pix = cpixel(*LAB)
 colcon.lab_to_lch(pix)
 pixcmp(list(pix), LCH)
@@ -87,6 +94,10 @@ pixcmp(list(pix), LAB)
 
 pix = cpixel(*LAB)
 colcon.lab_to_xyz(pix)
+pixcmp(list(pix), XYZ)
+
+pix = cpixel(*JZAZBZ)
+colcon.jzazbz_to_xyz(pix)
 pixcmp(list(pix), XYZ)
 
 pix = cpixel(*OKLAB)
