@@ -217,6 +217,13 @@ pub enum Space {
 
     /// Cylindrical version of OKLAB.
     OKLCH,
+
+    /// JzAzBz <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
+    /// 2017 UCS, intended for uniform hue and HDR colors
+    JZAZBZ,
+
+    /// Cylindrical version of JzAzBz
+    JZCZHZ,
 }
 
 impl TryFrom<&str> for Space {
@@ -251,6 +258,8 @@ impl core::fmt::Display for Space {
                     Self::LCH => "CIE L*C*Hab",
                     Self::OKLAB => "Oklab",
                     Self::OKLCH => "Oklch",
+                    Self::JZAZBZ => "JzAzBz",
+                    Self::JZCZHZ => "JzCzHz",
                 }
             ),
         )
@@ -270,6 +279,7 @@ impl PartialOrd for Space {
             Space::HSV => Ordering::Greater,
             Space::LCH => Ordering::Greater,
             Space::OKLCH => Ordering::Greater,
+            Space::JZCZHZ => Ordering::Greater,
 
             // Common intermittents
             Space::LRGB => match other {
@@ -290,6 +300,10 @@ impl PartialOrd for Space {
                 Space::OKLCH => Ordering::Less,
                 _ => Ordering::Greater,
             },
+            Space::JZAZBZ => match other {
+                Space::JZCZHZ => Ordering::Less,
+                _ => Ordering::Greater,
+            },
         })
     }
 }
@@ -306,11 +320,13 @@ impl Space {
             Space::LCH => ['l', 'c', 'h'],
             Space::OKLAB => ['l', 'a', 'b'],
             Space::OKLCH => ['l', 'c', 'h'],
+            Space::JZAZBZ => ['j', 'a', 'b'],
+            Space::JZCZHZ => ['j', 'c', 'h'],
         }
     }
 
     /// All color spaces
-    pub const ALL: [Space; 8] = [
+    pub const ALL: &'static [Space] = &[
         Space::SRGB,
         Space::HSV,
         Space::LRGB,
@@ -319,16 +335,18 @@ impl Space {
         Space::LCH,
         Space::OKLAB,
         Space::OKLCH,
+        Space::JZAZBZ,
+        Space::JZCZHZ,
     ];
 
     /// Uniform color spaces
-    pub const UCS: [Space; 2] = [Space::LAB, Space::OKLAB];
+    pub const UCS: &'static [Space] = &[Space::LAB, Space::OKLAB, Space::JZAZBZ];
 
     /// Uniform color spaces in cylindrical/polar format
-    pub const UCS_POLAR: [Space; 2] = [Space::LCH, Space::OKLCH];
+    pub const UCS_POLAR: &'static [Space] = &[Space::LCH, Space::OKLCH, Space::JZCZHZ];
 
     /// RGB/Tristimulus color spaces
-    pub const TRI: [Space; 3] = [Space::SRGB, Space::LRGB, Space::XYZ];
+    pub const TRI: &'static [Space] = &[Space::SRGB, Space::LRGB, Space::XYZ];
 }
 
 // ### Space ### }}}
@@ -377,6 +395,14 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                 pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
                 convert_space_chunked(Space::OKLAB, to, pixels)
             }
+            Space::JZAZBZ => {
+                pixels.iter_mut().for_each(|pixel| jzazbz_to_xyz(pixel));
+                convert_space_chunked(Space::XYZ, to, pixels)
+            }
+            Space::JZCZHZ => {
+                pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
+                convert_space_chunked(Space::JZAZBZ, to, pixels)
+            }
         }
     } else if from < to {
         match from {
@@ -384,6 +410,7 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
             Space::HSV => unreachable!(),
             Space::LCH => unreachable!(),
             Space::OKLCH => unreachable!(),
+            Space::JZCZHZ => unreachable!(),
 
             Space::SRGB => match to {
                 Space::HSV => pixels.iter_mut().for_each(|pixel| srgb_to_hsv(pixel)),
@@ -405,10 +432,13 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                     pixels.iter_mut().for_each(|pixel| xyz_to_oklab(pixel));
                     convert_space_chunked(Space::OKLAB, to, pixels)
                 }
+                Space::JZAZBZ | Space::JZCZHZ => {
+                    pixels.iter_mut().for_each(|pixel| xyz_to_jzazbz(pixel));
+                    convert_space_chunked(Space::JZAZBZ, to, pixels)
+                }
                 _ => unreachable!("XYZ tried to promote to {}", to),
             },
-            Space::LAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
-            Space::OKLAB => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
+            Space::LAB | Space::OKLAB | Space::JZAZBZ => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
         }
     }
 }
@@ -606,10 +636,11 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
         JZAZBZ_M1,
     );
 
-    lms.iter_mut().for_each(|c| {
-        *c = (*c / 10000.0).powf(PQEOTF_M1);
-        *c = (PQEOTF_C1 + PQEOTF_C2 * *c) / (1.0 + PQEOTF_C3 * *c);
-        *c = c.powf(JZAZBZ_P)
+    lms.iter_mut().for_each(|e| {
+        *e = (
+            (PQEOTF_C1 + PQEOTF_C2 * (*e / 10000.0).powf(PQEOTF_M1)) /
+            (1.0 + PQEOTF_C3 * (*e / 10000.0).powf(PQEOTF_M1))
+        ).powf(JZAZBZ_P)
     });
 
     let lab = matmul3(lms, JZAZBZ_M2);
@@ -1039,6 +1070,8 @@ mod tests {
         let mut pixel = HSV;
         let mut oklch = OKLAB;
         lab_to_lch(&mut oklch);
+        let mut jzczhz = JZAZBZ;
+        lab_to_lch(&mut jzczhz);
 
         // the hundred conversions gradually decreases accuracy
         let eps = 1e-4;
@@ -1052,13 +1085,21 @@ mod tests {
         convert_space(Space::LCH, Space::OKLCH, &mut pixel);
         pixcmp_eps(pixel, oklch, eps);
 
-        println!("OKLCH -> HSV");
-        convert_space(Space::OKLCH, Space::HSV, &mut pixel);
+        println!("OKLCH -> JZCZHZ");
+        convert_space(Space::OKLCH, Space::JZCZHZ, &mut pixel);
+        pixcmp_eps(pixel, jzczhz, eps);
+
+        println!("JZCZHZ -> HSV");
+        convert_space(Space::JZCZHZ, Space::HSV, &mut pixel);
         pixcmp_eps(pixel, HSV, eps);
 
         // backwards
-        println!("HSV -> OKLCH");
-        convert_space(Space::HSV, Space::OKLCH, &mut pixel);
+        println!("HSV -> JZCZHZ");
+        convert_space(Space::HSV, Space::JZCZHZ, &mut pixel);
+        pixcmp_eps(pixel, jzczhz, eps);
+
+        println!("JZCZHZ -> OKLCH");
+        convert_space(Space::JZCZHZ, Space::OKLCH, &mut pixel);
         pixcmp_eps(pixel, oklch, eps);
 
         println!("OKLCH -> LCH");
