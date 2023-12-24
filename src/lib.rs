@@ -22,7 +22,7 @@ pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
 // CIE LAB
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
-// <PQ EOTF 4a <https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf>
+// <PQ EOTF Table 4 <https://www.itu.int/rec/R-REC-BT.2100/en>
 const PQEOTF_M1: f32 = 0.1593017578125;
 const PQEOTF_M2: f32 = 78.84375;
 const PQEOTF_C1: f32 = 0.8359375;
@@ -628,6 +628,61 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
 
 // }
 
+// Disabled until the reference fuzziness is resolved
+/// Convert LRGB to ICtCp
+/// <https://www.itu.int/rec/R-REC-BT.2100/en>
+// #[no_mangle]
+// pub extern "C" fn lrgb_to_ictcp(pixel: &mut [f32; 3]) {
+
+//     let pq_eotf = |c: &mut f32| *c = 10000.0 *
+//         (
+//             (c.powf(1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0) /
+//             (PQEOTF_C2 - PQEOTF_C3 * c.powf(1.0 / PQEOTF_M2))
+//         )
+//         .powf(1.0 / PQEOTF_M1);
+
+//     let pq_eotf_inverse = |c: &mut f32| *c =
+//         (
+//             (PQEOTF_C1 + PQEOTF_C2 * (*c / 10000.0).powf(PQEOTF_M1)) /
+//             (1.0 + PQEOTF_C3 * (*c / 10000.0).powf(PQEOTF_M1))
+//         )
+//         .powf(PQEOTF_M2);
+
+//     // <https://www.itu.int/rec/R-REC-BT.2020/en>
+//     let alpha = 1.09929682680944;
+//     let beta = 0.018053968510807;
+//     let bt2020 = |e: &mut f32| {
+//         *e = if *e < beta {4.5 * *e}
+//         else {alpha * e.powf(0.45) - (alpha - 1.0)}
+//     };
+//     pixel.iter_mut().for_each(|c| bt2020(c));
+//     println!("{:?}\n[0.28192627, 0.34645211, 0.88486558]", pixel);
+
+//     let mut lms = matmul3t(*pixel, [
+//         [1688.0, 2146.0, 262.0],
+//         [683.0, 2951.0, 462.0],
+//         [99.0, 309.0, 3688.0],
+//     ]);
+//     lms.iter_mut().for_each(|c| *c /= 4096.0);
+
+//     // lms prime
+//     lms.iter_mut().for_each(|c| pq_eotf_inverse(c));
+
+//     // *pixel = matmul3t(lms, [
+//     //     [2048.0, 2048.0, 0.0],
+//     //     [6610.0, -13613.0, 7003.0],
+//     //     [17933.0, -17390.0, -543.0],
+//     // ]);
+//     // pixel.iter_mut().for_each(|c| *c /= 4096.0)
+
+//     *pixel = [
+//         lms[0] * 0.5 + lms[1] * 0.5,
+//         (6610.0 * lms[0] - 13613.0 * lms[1] + 7003.0 * lms[2]) / 4096.0,
+//         (17933.0 * lms[0] - 17390.0 * lms[1] - 543.0 * lms[2]) / 4096.0,
+//     ];
+
+// }
+
 /// Convert from CIE LAB to CIE LCH.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
@@ -797,6 +852,13 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 
 // }
 
+/// Convert ICtCp to LRGB
+/// <https://www.itu.int/rec/R-REC-BT.2100/en>
+// #[no_mangle]
+// pub extern "C" fn ictcp_to_lrgb(pixel: &mut [f32; 3]) {
+
+// }
+
 /// Convert from CIE LCH to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
@@ -826,9 +888,9 @@ mod tests {
     const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
     const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
     const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
-    // const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
-    const _ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
     const JZAZBZ: [f32; 3] = [0.00601244, -0.00145433, -0.01984568];
+    // const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
+    // const ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
 
     fn pixcmp_eps(a: [f32; 3], b: [f32; 3], eps: f32) {
         a.iter().zip(b.iter()).for_each(|(ac, bc)| {
@@ -955,6 +1017,20 @@ mod tests {
     //     let mut pixel = CAM16UCS;
     //     cam16ucs_to_xyz(&mut pixel);
     //     pixcmp(pixel, XYZ);
+    // }
+
+    // #[test]
+    // fn ictcp_to() {
+    //     let mut pixel = LRGB;
+    //     lrgb_to_ictcp(&mut pixel);
+    //     pixcmp(pixel, ICTCP);
+    // }
+
+    // #[test]
+    // fn ictcp_from() {
+    //     let mut pixel = ICTCP;
+    //     ictcp_to_lrgb(&mut pixel);
+    //     pixcmp(pixel, LRGB);
     // }
 
     #[test]
