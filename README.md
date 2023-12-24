@@ -6,7 +6,7 @@ Simple colorspace conversions in Rust.
   * Most functions compile to a C lib
   * sRGB, HSV, CIE XYZ, CIE L*a*b*, Oklab, JzAzBz
     + Cylindrical versions of all LAB-adjacent spaces
-  * Accurate to 1e-5 minimum, referencing [colour-science](https://github.com/colour-science/colour)
+  * Accurate across a wide variety of tests, referencing [colour-science](https://github.com/colour-science/colour)
 
 ## Future
   * Look into SIMD when supported by standard library
