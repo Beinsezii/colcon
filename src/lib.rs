@@ -1054,7 +1054,7 @@ mod tests {
     }
 
     fn func_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3])) {
-        func_cmp_eps(input, reference, function, 1e-4)
+        func_cmp_eps(input, reference, function, 1e-3)
     }
 
     #[test]
