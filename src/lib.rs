@@ -3,8 +3,8 @@
 //! Simple colorspace conversions in pure Rust.
 //!
 //! All conversions are in-place, except when converting to/from integer and hexadecimal.
-//! Formulas are generally taken from Wikipedia with correctness verified against both
-//! <https://www.easyrgb.com> and BABL.
+//! Formulae are generally taken from their research papers or Wikipedia and validated against
+//! colour-science <https://github.com/colour-science/colour>
 //!
 //! Helmholtz-Kohlrausch compensation formulae sourced from
 //! <https://onlinelibrary.wiley.com/doi/10.1002/col.22839>
@@ -520,7 +520,7 @@ pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
 
 // ### Convert Space ### }}}
 
-// ### UP ###  {{{
+// ### FORWARD ### {{{
 
 /// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
 /// Simply clips values > 1.0 && < 0.0.
@@ -725,9 +725,9 @@ pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
     ];
 }
 
-// ### UP ### }}}
+// ### FORWARD ### }}}
 
-// ### DOWN ### {{{
+// ### BACKWARD ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
 /// Not RGB specific, but other formats typically aren't represented as integers.
@@ -850,8 +850,6 @@ pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
 
 /// Convert JzAzBz to CIE XYZ
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-/// Inverse formula mostly taken from their matlab reference code
-/// https://opticapublishing.figshare.com/articles/software/JzAzBz_m/5016299
 #[no_mangle]
 pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
     let mut lms = matmul3(
@@ -901,7 +899,7 @@ pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
     ]
 }
 
-// DOWN }}}
+// BACKWARD }}}
 
 // ### TESTS ### {{{
 #[cfg(test)]
