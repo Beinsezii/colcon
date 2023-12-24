@@ -22,20 +22,20 @@ pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
 // CIE LAB
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
+// <PQ EOTF 4a <https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf>
+const PQEOTF_M1: f32 = 0.1593017578125;
+const PQEOTF_M2: f32 = 78.84375;
+const PQEOTF_C1: f32 = 0.8359375;
+const PQEOTF_C2: f32 = 18.8515625;
+const PQEOTF_C3: f32 = 18.6875;
+
 // JzAzBz
 const JZAZBZ_B: f32 = 1.15;
 const JZAZBZ_G: f32 = 0.66;
 const JZAZBZ_D: f32 = -0.56;
 const JZAZBZ_D0: f32 = 1.6295499532821566 * 1e-11;
-// const JZAZBZ_P: f32 = 1.7 * 2523.0 / 2.0f32.powi(5);
-const JZAZBZ_P: f32 = 134.034375;
+const JZAZBZ_P: f32 = 1.7 * PQEOTF_M2;
 
-// <PQ EOTF 4a <https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf>
-// C1, C2, C3, M1 -> N
-const JZAZBZ_N: f32 = 0.1593017578125;
-const JZAZBZ_C1: f32 = 0.8359375;
-const JZAZBZ_C2: f32 = 18.8515625;
-const JZAZBZ_C3: f32 = 18.6875;
 
 // ### CONSTS ### }}}
 
@@ -607,8 +607,8 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
     );
 
     lms.iter_mut().for_each(|c| {
-        *c = (*c / 10000.0).powf(JZAZBZ_N);
-        *c = (JZAZBZ_C1 + JZAZBZ_C2 * *c) / (1.0 + JZAZBZ_C3 * *c);
+        *c = (*c / 10000.0).powf(PQEOTF_M1);
+        *c = (PQEOTF_C1 + PQEOTF_C2 * *c) / (1.0 + PQEOTF_C3 * *c);
         *c = c.powf(JZAZBZ_P)
     });
 
@@ -779,9 +779,9 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 
     lms.iter_mut().for_each(|c| {
         *c = 10000.0
-            * ((JZAZBZ_C1 - c.powf(1.0 / JZAZBZ_P))
-                / (JZAZBZ_C3 * c.powf(1.0 / JZAZBZ_P) - JZAZBZ_C2))
-                .powf(1.0 / JZAZBZ_N);
+            * ((PQEOTF_C1 - c.powf(1.0 / JZAZBZ_P))
+                / (PQEOTF_C3 * c.powf(1.0 / JZAZBZ_P) - PQEOTF_C2))
+                .powf(1.0 / PQEOTF_M1);
     });
 
     *pixel = matmul3(lms, JZAZBZ_M1_INV);
