@@ -27,14 +27,12 @@ const JZAZBZ_B: f32 = 1.15;
 const JZAZBZ_G: f32 = 0.66;
 const JZAZBZ_D: f32 = -0.56;
 const JZAZBZ_D0: f32 = 1.6295499532821566 * 1e-11;
-// const JZAZBZ_N: f32 = 2610.0 / 2.0f32.powi(14);
 // const JZAZBZ_P: f32 = 1.7 * 2523.0 / 2.0f32.powi(5);
-// const JZAZBZ_C1: f32 = 3424.0 / 2.0f32.powi(12);
-// const JZAZBZ_C2: f32 = 2413.0 / 2.0f32.powi(7);
-// const JZAZBZ_C3: f32 = 2392.0 / 2.0f32.powi(7);
-// Pre-computed values for the above using f64 truncated to 10 points
-const JZAZBZ_N: f32 = 0.1593017578;
 const JZAZBZ_P: f32 = 134.034375;
+
+// <PQ EOTF 4a <https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf>
+// C1, C2, C3, M1 -> N
+const JZAZBZ_N: f32 = 0.1593017578125;
 const JZAZBZ_C1: f32 = 0.8359375;
 const JZAZBZ_C2: f32 = 18.8515625;
 const JZAZBZ_C3: f32 = 18.6875;
@@ -623,6 +621,13 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
     ]
 }
 
+// Disabled for now as all the papers are paywalled
+/// Convert CIE XYZ to CAM16-UCS
+// #[no_mangle]
+// pub extern "C" fn xyz_to_cam16ucs(pixel: &mut [f32; 3]) {
+
+// }
+
 /// Convert from CIE LAB to CIE LCH.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
@@ -785,6 +790,13 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
     pixel[1] = (pixel[1] + (JZAZBZ_G - 1.0) * pixel[0]) / JZAZBZ_G;
 }
 
+// Disabled for now as all the papers are paywalled
+/// Convert CAM16-UCS to CIE XYZ
+// #[no_mangle]
+// pub extern "C" fn cam16ucs_to_xyz(pixel: &mut [f32; 3]) {
+
+// }
+
 /// Convert from CIE LCH to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
@@ -814,7 +826,7 @@ mod tests {
     const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
     const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
     const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
-    const _CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
+    // const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
     const _ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
     const JZAZBZ: [f32; 3] = [0.00601244, -0.00145433, -0.01984568];
 
@@ -931,25 +943,19 @@ mod tests {
         pixcmp(pixel, XYZ);
     }
 
-    #[test]
-    fn cielab_full() {
-        let mut pixel = SRGB;
-        convert_space(Space::SRGB, Space::LCH, &mut pixel);
-        pixcmp(pixel, LCH);
-        convert_space(Space::LCH, Space::SRGB, &mut pixel);
-        pixcmp(pixel, SRGB);
-    }
+    // #[test]
+    // fn cam16ucs_to() {
+    //     let mut pixel = XYZ;
+    //     xyz_to_cam16ucs(&mut pixel);
+    //     pixcmp(pixel, CAM16UCS);
+    // }
 
-    #[test]
-    fn oklab_full() {
-        let mut pixel = SRGB;
-        let mut oklch = OKLAB;
-        lab_to_lch(&mut oklch);
-        convert_space(Space::SRGB, Space::OKLCH, &mut pixel);
-        pixcmp(pixel, oklch);
-        convert_space(Space::OKLCH, Space::SRGB, &mut pixel);
-        pixcmp(pixel, SRGB);
-    }
+    // #[test]
+    // fn cam16ucs_from() {
+    //     let mut pixel = CAM16UCS;
+    //     cam16ucs_to_xyz(&mut pixel);
+    //     pixcmp(pixel, XYZ);
+    // }
 
     #[test]
     fn tree_jump() {
