@@ -917,7 +917,9 @@ mod tests {
     const LAB: [f32; 3] = [44.68286380, 40.81934559, -80.13283179];
     const LCH: [f32; 3] = [44.68286380, 89.93047151, 296.99411238];
     const OKLAB: [f32; 3] = [0.53893206, -0.01239956, -0.23206808];
+    const OKLCH: [f32; 3] = [0.53893206, 0.23239910, 266.94155415];
     const JZAZBZ: [f32; 3] = [0.00601244, -0.00145433, -0.01984568];
+    const JZCZHZ: [f32; 3] = [0.00601244, 0.01989890, 265.80875740];
     // const CAM16UCS: [f32; 3] = [47.84082873, 4.32008711, -34.36538267];
     // const ICTCP: [f32; 3] = [0.07621171, 0.08285557, -0.03831496];
 
@@ -1065,15 +1067,10 @@ mod tests {
     #[test]
     fn tree_jump() {
         println!("BEGIN");
-        let mut pixel = HSV;
-        let mut oklch = OKLAB;
-        lab_to_lch(&mut oklch);
-        let mut jzczhz = JZAZBZ;
-        lab_to_lch(&mut jzczhz);
-
         // the hundred conversions gradually decreases accuracy
         let eps = 1e-4;
 
+        let mut pixel = HSV;
         // forwards
         println!("HSV -> LCH");
         convert_space(Space::HSV, Space::LCH, &mut pixel);
@@ -1081,11 +1078,11 @@ mod tests {
 
         println!("LCH -> OKLCH");
         convert_space(Space::LCH, Space::OKLCH, &mut pixel);
-        pixcmp_eps(pixel, oklch, eps);
+        pixcmp_eps(pixel, OKLCH, eps);
 
         println!("OKLCH -> JZCZHZ");
         convert_space(Space::OKLCH, Space::JZCZHZ, &mut pixel);
-        pixcmp_eps(pixel, jzczhz, eps);
+        pixcmp_eps(pixel, JZCZHZ, eps);
 
         println!("JZCZHZ -> HSV");
         convert_space(Space::JZCZHZ, Space::HSV, &mut pixel);
@@ -1094,11 +1091,11 @@ mod tests {
         // backwards
         println!("HSV -> JZCZHZ");
         convert_space(Space::HSV, Space::JZCZHZ, &mut pixel);
-        pixcmp_eps(pixel, jzczhz, eps);
+        pixcmp_eps(pixel, JZCZHZ, eps);
 
         println!("JZCZHZ -> OKLCH");
         convert_space(Space::JZCZHZ, Space::OKLCH, &mut pixel);
-        pixcmp_eps(pixel, oklch, eps);
+        pixcmp_eps(pixel, OKLCH, eps);
 
         println!("OKLCH -> LCH");
         convert_space(Space::OKLCH, Space::LCH, &mut pixel);
