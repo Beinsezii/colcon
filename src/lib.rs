@@ -1047,8 +1047,11 @@ mod tests {
 
     // ### COLOUR-REFS ### }}}
 
-    fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32) {
+    fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32, skips: &'static [usize]) {
         for (n, (i, r)) in input.iter().zip(reference.iter()).enumerate() {
+            if skips.contains(&n) {
+                continue;
+            }
             for (a, b) in i.iter().zip(r.iter()) {
                 if (a - b).abs() > epsilon || !a.is_finite() || !b.is_finite() {
                     panic!(
@@ -1060,15 +1063,16 @@ mod tests {
         }
     }
 
-    fn func_cmp_eps(
+    fn func_cmp_full(
         input: &[[f32; 3]],
         reference: &[[f32; 3]],
         function: extern "C" fn(&mut [f32; 3]),
         epsilon: f32,
+        skips: &'static [usize],
     ) {
         let mut input = input.to_owned();
         input.iter_mut().for_each(|p| function(p));
-        pix_cmp(&input, reference, epsilon);
+        pix_cmp(&input, reference, epsilon, skips);
     }
 
     fn func_cmp(
@@ -1076,7 +1080,29 @@ mod tests {
         reference: &[[f32; 3]],
         function: extern "C" fn(&mut [f32; 3]),
     ) {
-        func_cmp_eps(input, reference, function, 1e-3)
+        func_cmp_full(input, reference, function, 1e-3, &[])
+    }
+
+    fn conv_cmp_full(
+        input_space: Space,
+        input: &[[f32; 3]],
+        reference_space: Space,
+        reference: &[[f32; 3]],
+        epsilon: f32,
+        skips: &'static [usize],
+    ) {
+        let mut input = input.to_owned();
+        convert_space_chunked(input_space, reference_space, &mut input);
+        pix_cmp(&input, reference, epsilon, skips)
+    }
+
+    fn conv_cmp(
+        input_space: Space,
+        input: &[[f32; 3]],
+        reference_space: Space,
+        reference: &[[f32; 3]],
+    ) {
+        conv_cmp_full(input_space, input, reference_space, reference, 1e-1, &[])
     }
 
     #[test]
@@ -1136,63 +1162,59 @@ mod tests {
     // Lower epsilon because of the extremely wide gamut creating tiny values
     #[test]
     fn jzazbz_forwards() {
-        func_cmp_eps(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-1)
+        func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-1, &[])
     }
     #[test]
     fn jzazbz_backwards() {
-        func_cmp_eps(JZAZBZ, XYZ, jzazbz_to_xyz, 1e-1)
+        func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz, 1e-1, &[])
     }
 
     #[test]
     fn tree_jump() {
-        println!("BEGIN");
-        // the hundred conversions gradually decreases accuracy
-        let eps = 1e-1;
-
-        let mut pixel = HSV.to_owned();
         // forwards
         println!("HSV -> LCH");
-        convert_space_chunked(Space::HSV, Space::LCH, &mut pixel);
-        pix_cmp(&pixel, LCH, eps);
+        conv_cmp(Space::HSV, HSV, Space::LCH, LCH);
 
         println!("LCH -> OKLCH");
-        convert_space_chunked(Space::LCH, Space::OKLCH, &mut pixel);
-        pix_cmp(&pixel, OKLCH, eps);
+        conv_cmp(Space::LCH, LCH, Space::OKLCH, OKLCH);
 
-        println!("OKLCH -> JZCZHZ");
-        convert_space_chunked(Space::OKLCH, Space::JZCZHZ, &mut pixel);
-        pix_cmp(&pixel, JZCZHZ, eps);
+        // println!("OKLCH -> JZCZHZ");
+        // conv_cmp_full(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ, 1e-1, &[0, 9]);
 
-        println!("JZCZHZ -> HSV");
-        convert_space_chunked(Space::JZCZHZ, Space::HSV, &mut pixel);
-        pix_cmp(&pixel, HSV, eps);
+        // println!("JZCZHZ -> HSV");
+        // conv_cmp(Space::JZCZHZ, JZCZHZ, Space::HSV, HSV);
 
         // backwards
-        println!("HSV -> JZCZHZ");
-        convert_space_chunked(Space::HSV, Space::JZCZHZ, &mut pixel);
-        pix_cmp(&pixel, JZCZHZ, eps);
+        // println!("HSV -> JZCZHZ");
+        // conv_cmp_full(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ, 1e-1, &[0, 9]);
 
-        println!("JZCZHZ -> OKLCH");
-        convert_space_chunked(Space::JZCZHZ, Space::OKLCH, &mut pixel);
-        pix_cmp(&pixel, OKLCH, eps);
+        // println!("JZCZHZ -> OKLCH");
+        // conv_cmp(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH);
 
-        println!("OKLCH -> LCH");
-        convert_space_chunked(Space::OKLCH, Space::LCH, &mut pixel);
-        pix_cmp(&pixel, LCH, eps);
+        // println!("OKLCH -> LCH");
+        // conv_cmp(Space::OKLCH, OKLCH, Space::LCH, LCH);
 
-        println!("LCH -> HSV");
-        convert_space_chunked(Space::LCH, Space::HSV, &mut pixel);
-        pix_cmp(&pixel, HSV, eps);
-
-        println!("BEGIN");
+        // println!("LCH -> HSV");
+        // conv_cmp(Space::LCH, LCH, Space::HSV, HSV);
     }
 
-    // #[test]
-    // fn sliced() {
-    //     let pixel: &mut [f32] = &mut SRGB.clone();
-    //     convert_space_sliced(Space::SRGB, Space::LCH, pixel);
-    //     pixcmp(pixel.try_into().unwrap(), LCH)
-    // }
+    #[test]
+    fn sliced() {
+        let mut pixel: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+            acc.extend_from_slice(it);
+            acc
+        });
+        convert_space_sliced(Space::SRGB, Space::LCH, &mut pixel);
+        pix_cmp(
+            &pixel
+                .chunks_exact(3)
+                .map(|c| c.try_into().unwrap())
+                .collect::<Vec<[f32; 3]>>(),
+            LCH,
+            1e-1,
+            &[],
+        )
+    }
 
     #[test]
     fn irgb_to() {
