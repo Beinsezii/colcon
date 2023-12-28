@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use colcon::{Space, convert_space, expand_gamma, correct_gamma};
+use colcon::{Space, convert_space};
 
 fn pixels() -> Box<[f32]> {
     let size = 512;
@@ -72,12 +72,12 @@ pub fn conversions(c: &mut Criterion) {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::hsv_to_srgb(pixel.try_into().unwrap())));
     } ));
 
-    c.bench_function("expand_gamma", |b| b.iter(|| {
-        black_box(pixels.clone().iter_mut().for_each(|n| *n = expand_gamma(*n)));
+    c.bench_function("srgb_eotf", |b| b.iter(|| {
+        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf(*n)));
     } ));
 
-    c.bench_function("correct_gamma", |b| b.iter(|| {
-        black_box(pixels.clone().iter_mut().for_each(|n| *n = correct_gamma(*n)));
+    c.bench_function("srgb_eotf_inverse", |b| b.iter(|| {
+        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf_inverse(*n)));
     } ));
 
     c.bench_function("full_to", |b| b.iter(|| {

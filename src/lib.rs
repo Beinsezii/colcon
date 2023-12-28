@@ -19,6 +19,17 @@ use core::ffi::{c_char, CStr};
 /// Standard Illuminant D65.
 pub const D65: [f32; 3] = [0.9504559270516716, 1.0, 1.0890577507598784];
 
+const SRGBEOTF_ALPHA: f32 = 0.055;
+const SRGBEOTF_GAMMA: f32 = 2.4;
+// more precise older specs
+// const SRGBEOTF_PHI: f32 = 12.9232102;
+// const SRGBEOTF_CHI: f32 = 0.0392857;
+// const SRGBEOTF_CHI_INV: f32 = 0.0030399;
+// less precise but basically official now
+const SRGBEOTF_PHI: f32 = 12.92;
+const SRGBEOTF_CHI: f32 = 0.04045;
+const SRGBEOTF_CHI_INV: f32 = 0.0031308;
+
 // CIE LAB
 const LAB_DELTA: f32 = 6.0 / 29.0;
 
@@ -126,24 +137,24 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 // ### UTILITIES ### {{{
 
 /// sRGB Electro-Optical Transfer Function
-/// <https://www.color.org/chardata/rgb/srgb.xalter>
+/// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
 #[no_mangle]
 pub extern "C" fn srgb_eotf(n: f32) -> f32 {
-    if n <= 0.04045 {
-        n / 12.92
+    if n <= SRGBEOTF_CHI {
+        n / SRGBEOTF_PHI
     } else {
-        ((n + 0.055) / 1.055_f32).powf(2.4)
+        ((n + SRGBEOTF_ALPHA) / (1.0 + SRGBEOTF_ALPHA)).powf(SRGBEOTF_GAMMA)
     }
 }
 
 /// Inverse sRGB Electro-Optical Transfer Function
-/// <https://www.color.org/chardata/rgb/srgb.xalter>
+/// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
 #[no_mangle]
 pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
-    if n <= 0.0031308 {
-        n * 12.92
+    if n <= SRGBEOTF_CHI_INV {
+        n * SRGBEOTF_PHI
     } else {
-        1.055 * (n.powf(1.0 / 2.4)) - 0.055
+        (1.0 + SRGBEOTF_ALPHA) * (n.powf(1.0 / SRGBEOTF_GAMMA)) - SRGBEOTF_ALPHA
     }
 }
 // ### UTILITIES ### }}}
