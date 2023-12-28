@@ -36,7 +36,6 @@ const JZAZBZ_D: f32 = -0.56;
 const JZAZBZ_D0: f32 = 1.6295499532821566 * 1e-11;
 const JZAZBZ_P: f32 = 1.7 * PQEOTF_M2;
 
-
 // ### CONSTS ### }}}
 
 // ### MATRICES ### {{{
@@ -126,9 +125,10 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 
 // ### UTILITIES ### {{{
 
-/// Expand gamma of a single value to linear light
+/// sRGB Electro-Optical Transfer Function
+/// <https://www.color.org/chardata/rgb/srgb.xalter>
 #[no_mangle]
-pub extern "C" fn expand_gamma(n: f32) -> f32 {
+pub extern "C" fn srgb_eotf(n: f32) -> f32 {
     if n <= 0.04045 {
         n / 12.92
     } else {
@@ -136,9 +136,10 @@ pub extern "C" fn expand_gamma(n: f32) -> f32 {
     }
 }
 
-/// Gamma corrects a single linear light value
+/// Inverse sRGB Electro-Optical Transfer Function
+/// <https://www.color.org/chardata/rgb/srgb.xalter>
 #[no_mangle]
-pub extern "C" fn correct_gamma(n: f32) -> f32 {
+pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
     if n <= 0.0031308 {
         n * 12.92
     } else {
@@ -438,7 +439,9 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                 }
                 _ => unreachable!("XYZ tried to promote to {}", to),
             },
-            Space::LAB | Space::OKLAB | Space::JZAZBZ => pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel)),
+            Space::LAB | Space::OKLAB | Space::JZAZBZ => {
+                pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel))
+            }
         }
     }
 }
@@ -578,11 +581,11 @@ pub extern "C" fn srgb_to_hsv(pixel: &mut [f32; 3]) {
     *pixel = [h, s, v];
 }
 
-/// Convert from sRGB to Linear Light RGB.
-/// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
+/// Convert from sRGB to Linear RGB by applying the sRGB EOTF
+/// <https://www.color.org/chardata/rgb/srgb.xalter>
 #[no_mangle]
 pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
-    pixel.iter_mut().for_each(|c| *c = expand_gamma(*c));
+    pixel.iter_mut().for_each(|c| *c = srgb_eotf(*c));
 }
 
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
@@ -637,10 +640,9 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
     );
 
     lms.iter_mut().for_each(|e| {
-        *e = (
-            (PQEOTF_C1 + PQEOTF_C2 * (*e / 10000.0).powf(PQEOTF_M1)) /
-            (1.0 + PQEOTF_C3 * (*e / 10000.0).powf(PQEOTF_M1))
-        ).powf(JZAZBZ_P)
+        *e = ((PQEOTF_C1 + PQEOTF_C2 * (*e / 10000.0).powf(PQEOTF_M1))
+            / (1.0 + PQEOTF_C3 * (*e / 10000.0).powf(PQEOTF_M1)))
+        .powf(JZAZBZ_P)
     });
 
     let lab = matmul3t(lms, JZAZBZ_M2);
@@ -804,11 +806,11 @@ pub extern "C" fn hsv_to_srgb(pixel: &mut [f32; 3]) {
     }
 }
 
-/// Convert from Linear Light RGB to sRGB.
-/// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
+/// Convert from Linear RGB to sRGB by applying the inverse sRGB EOTF
+/// <https://www.color.org/chardata/rgb/srgb.xalter>
 #[no_mangle]
 pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
-    pixel.iter_mut().for_each(|c| *c = correct_gamma(*c));
+    pixel.iter_mut().for_each(|c| *c = srgb_eotf_inverse(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
@@ -1047,51 +1049,88 @@ mod tests {
         }
     }
 
-    fn func_cmp_eps(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3]), epsilon: f32) {
+    fn func_cmp_eps(
+        input: &[[f32; 3]],
+        reference: &[[f32; 3]],
+        function: extern "C" fn(&mut [f32; 3]),
+        epsilon: f32,
+    ) {
         let mut input = input.to_owned();
         input.iter_mut().for_each(|p| function(p));
         pix_cmp(&input, reference, epsilon);
     }
 
-    fn func_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3])) {
+    fn func_cmp(
+        input: &[[f32; 3]],
+        reference: &[[f32; 3]],
+        function: extern "C" fn(&mut [f32; 3]),
+    ) {
         func_cmp_eps(input, reference, function, 1e-3)
     }
 
     #[test]
-    fn hsv_forwards() {func_cmp(SRGB, HSV, srgb_to_hsv)}
+    fn hsv_forwards() {
+        func_cmp(SRGB, HSV, srgb_to_hsv)
+    }
     #[test]
-    fn hsv_backwards() {func_cmp(HSV, SRGB, hsv_to_srgb)}
+    fn hsv_backwards() {
+        func_cmp(HSV, SRGB, hsv_to_srgb)
+    }
 
     #[test]
-    fn lrgb_forwards() {func_cmp(SRGB, LRGB, srgb_to_lrgb)}
+    fn lrgb_forwards() {
+        func_cmp(SRGB, LRGB, srgb_to_lrgb)
+    }
     #[test]
-    fn lrgb_backwards() {func_cmp(LRGB, SRGB, lrgb_to_srgb)}
+    fn lrgb_backwards() {
+        func_cmp(LRGB, SRGB, lrgb_to_srgb)
+    }
 
     #[test]
-    fn xyz_forwards() {func_cmp(LRGB, XYZ, lrgb_to_xyz)}
+    fn xyz_forwards() {
+        func_cmp(LRGB, XYZ, lrgb_to_xyz)
+    }
     #[test]
-    fn xyz_backwards() {func_cmp(XYZ, LRGB, xyz_to_lrgb)}
+    fn xyz_backwards() {
+        func_cmp(XYZ, LRGB, xyz_to_lrgb)
+    }
 
     #[test]
-    fn lab_forwards() {func_cmp(XYZ, LAB, xyz_to_lab)}
+    fn lab_forwards() {
+        func_cmp(XYZ, LAB, xyz_to_lab)
+    }
     #[test]
-    fn lab_backwards() {func_cmp(LAB, XYZ, lab_to_xyz)}
+    fn lab_backwards() {
+        func_cmp(LAB, XYZ, lab_to_xyz)
+    }
 
     #[test]
-    fn lch_forwards() {func_cmp(LAB, LCH, lab_to_lch)}
+    fn lch_forwards() {
+        func_cmp(LAB, LCH, lab_to_lch)
+    }
     #[test]
-    fn lch_backwards() {func_cmp(LCH, LAB, lch_to_lab)}
+    fn lch_backwards() {
+        func_cmp(LCH, LAB, lch_to_lab)
+    }
 
     #[test]
-    fn oklab_forwards() {func_cmp(XYZ, OKLAB, xyz_to_oklab)}
+    fn oklab_forwards() {
+        func_cmp(XYZ, OKLAB, xyz_to_oklab)
+    }
     #[test]
-    fn oklab_backwards() {func_cmp(OKLAB, XYZ, oklab_to_xyz)}
+    fn oklab_backwards() {
+        func_cmp(OKLAB, XYZ, oklab_to_xyz)
+    }
 
     // Lower epsilon because of the extremely wide gamut creating tiny values
     #[test]
-    fn jzazbz_forwards() {func_cmp_eps(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-1)}
+    fn jzazbz_forwards() {
+        func_cmp_eps(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-1)
+    }
     #[test]
-    fn jzazbz_backwards() {func_cmp_eps(JZAZBZ, XYZ, jzazbz_to_xyz, 1e-1)}
+    fn jzazbz_backwards() {
+        func_cmp_eps(JZAZBZ, XYZ, jzazbz_to_xyz, 1e-1)
+    }
 
     #[test]
     fn tree_jump() {
