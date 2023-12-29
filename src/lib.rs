@@ -1224,12 +1224,38 @@ mod tests {
     }
 
     #[test]
-    fn jzazbz_extra_nan() {
-        let mut p = [0.0, 50.0, 123.0];
-        convert_space(Space::JZCZHZ, Space::HSV, &mut p);
-        assert!(!p[0].is_nan());
-        assert!(!p[1].is_nan());
-        assert!(!p[2].is_nan());
+    fn nan_checks() {
+        let it = [1e+3, -1e+3, 1e-3, -1e-3];
+        let fns: &[(&'static str, extern "C" fn(&mut [f32; 3]))] = &[
+            ("hsv_forwards", srgb_to_hsv),
+            ("hsv_backwards", hsv_to_srgb),
+            ("lrgb_forwards", srgb_to_lrgb),
+            ("lrgb_backwards", lrgb_to_srgb),
+            ("xyz_forwards", lrgb_to_xyz),
+            ("xyz_backwards", xyz_to_lrgb),
+            ("lab_forwards", xyz_to_lab),
+            ("lab_backwards", lab_to_xyz),
+            ("lch_forwards", lab_to_lch),
+            ("lch_backwards", lch_to_lab),
+            ("oklab_forwards", xyz_to_oklab),
+            ("oklab_backwards", oklab_to_xyz),
+            ("jzazbz_forwards", xyz_to_jzazbz),
+            ("jzazbz_backwards", jzazbz_to_xyz),
+        ];
+        for (label, func) in fns {
+            for a in it.iter() {
+                for b in it.iter() {
+                    for c in it.iter() {
+                        let from: [f32; 3] = [*a, *b, *c];
+                        let mut to = from;
+                        func(&mut to);
+                        if to.iter().any(|c| !c.is_finite()) {
+                            panic!("{} : {:?} -> {:?}", label, from, to);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]
