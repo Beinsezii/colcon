@@ -1101,7 +1101,7 @@ mod tests {
         reference_space: Space,
         reference: &[[f32; 3]],
     ) {
-        conv_cmp_full(input_space, input, reference_space, reference, 1e-1, &[0, 7])
+        conv_cmp_full(input_space, input, reference_space, reference, 1e-2, &[0, 7])
     }
 
     #[test]
@@ -1188,7 +1188,7 @@ mod tests {
         conv_cmp_full(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ, 2e-1, &[0, 7]);
 
         println!("JZCZHZ -> OKLCH");
-        conv_cmp(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH);
+        conv_cmp_full(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH, 1e-1, &[0, 7]);
 
         println!("OKLCH -> LCH");
         conv_cmp(Space::OKLCH, OKLCH, Space::LCH, LCH);
