@@ -136,6 +136,10 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 
 // ### UTILITIES ### {{{
 
+fn spowf(n: f32, power: f32) -> f32 {
+    n.abs().powf(power).copysign(n)
+}
+
 /// sRGB Electro-Optical Transfer Function
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
 #[no_mangle]
@@ -652,8 +656,8 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
 
     lms.iter_mut().for_each(|e| {
         let v = *e / 10000.0;
-        *e = ((PQEOTF_C1 + PQEOTF_C2 * v.abs().powf(PQEOTF_M1).copysign(v))
-            / (1.0 + PQEOTF_C3 * v.abs().powf(PQEOTF_M1).copysign(v)))
+        *e = ((PQEOTF_C1 + PQEOTF_C2 * spowf(v, PQEOTF_M1))
+            / (1.0 + PQEOTF_C3 * spowf(v, PQEOTF_M1)))
         .powf(JZAZBZ_P)
     });
 
@@ -874,11 +878,15 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
         ],
         JZAZBZ_M2_INV,
     );
+
     lms.iter_mut().for_each(|c| {
-        let v = (PQEOTF_C1 - c.powf(1.0 / JZAZBZ_P))
-            / (PQEOTF_C3 * c.powf(1.0 / JZAZBZ_P) - PQEOTF_C2);
-        *c = 10000.0 * v.abs().powf(1.0 / PQEOTF_M1).copysign(v);
+        let v = (PQEOTF_C1 - spowf(*c, 1.0 / JZAZBZ_P))
+            / (PQEOTF_C3 * spowf(*c, 1.0 / JZAZBZ_P) - PQEOTF_C2);
+        println!("{}", v);
+        *c = 10000.0 * spowf(v, 1.0 / PQEOTF_M1);
     });
+
+    println!("{:?}", lms);
 
     *pixel = matmul3t(lms, JZAZBZ_M1_INV);
 
@@ -1215,6 +1223,15 @@ mod tests {
             1e-1,
             &[],
         )
+    }
+
+    #[test]
+    fn jzazbz_extra_nan() {
+        let mut p = [0.0, 50.0, 123.0];
+        convert_space(Space::JZCZHZ, Space::HSV, &mut p);
+        assert!(!p[0].is_nan());
+        assert!(!p[1].is_nan());
+        assert!(!p[2].is_nan());
     }
 
     #[test]
