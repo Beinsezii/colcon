@@ -20,7 +20,7 @@ srgb = np.array([
     [1.0, 1.0, 1.0],
     [5.0, 10.0, 15.0],
     [-5.0, -10.0, -15.0],
-    ], dtype=np.float32)
+    ])
 lrgb = colour.models.eotf_sRGB(srgb)
 hsv = colour.RGB_to_HSV(srgb)
 xyz = colour.sRGB_to_XYZ(srgb)
