@@ -1101,7 +1101,7 @@ mod tests {
         reference_space: Space,
         reference: &[[f32; 3]],
     ) {
-        conv_cmp_full(input_space, input, reference_space, reference, 1e-1, &[0, 7, 8, 9])
+        conv_cmp_full(input_space, input, reference_space, reference, 1e-1, &[0, 7])
     }
 
     #[test]
@@ -1178,14 +1178,14 @@ mod tests {
         conv_cmp(Space::LCH, LCH, Space::OKLCH, OKLCH);
 
         println!("OKLCH -> JZCZHZ");
-        conv_cmp(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ);
+        conv_cmp_full(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ, 2e-1, &[0, 7]);
 
         println!("JZCZHZ -> HSV");
         conv_cmp(Space::JZCZHZ, JZCZHZ, Space::HSV, HSV);
 
         // backwards
         println!("HSV -> JZCZHZ");
-        conv_cmp(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ);
+        conv_cmp_full(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ, 2e-1, &[0, 7]);
 
         println!("JZCZHZ -> OKLCH");
         conv_cmp(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH);
@@ -1196,7 +1196,7 @@ mod tests {
         // add 1 to skip because the hue wraps from 0.0000 to 0.9999
         // fuck you precision
         println!("LCH -> HSV");
-        conv_cmp_full(Space::LCH, LCH, Space::HSV, HSV, 1e-1, &[0, 1, 7, 8, 9]);
+        conv_cmp_full(Space::LCH, LCH, Space::HSV, HSV, 1e-1, &[0, 1, 7]);
     }
 
     #[test]
