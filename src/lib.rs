@@ -882,11 +882,9 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
     lms.iter_mut().for_each(|c| {
         let v = (PQEOTF_C1 - spowf(*c, 1.0 / JZAZBZ_P))
             / (PQEOTF_C3 * spowf(*c, 1.0 / JZAZBZ_P) - PQEOTF_C2);
-        println!("{}", v);
         *c = 10000.0 * spowf(v, 1.0 / PQEOTF_M1);
     });
 
-    println!("{:?}", lms);
 
     *pixel = matmul3t(lms, JZAZBZ_M1_INV);
 
