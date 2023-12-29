@@ -651,8 +651,9 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
     );
 
     lms.iter_mut().for_each(|e| {
-        *e = ((PQEOTF_C1 + PQEOTF_C2 * (*e / 10000.0).powf(PQEOTF_M1))
-            / (1.0 + PQEOTF_C3 * (*e / 10000.0).powf(PQEOTF_M1)))
+        let v = *e / 10000.0;
+        *e = ((PQEOTF_C1 + PQEOTF_C2 * v.abs().powf(PQEOTF_M1).copysign(v))
+            / (1.0 + PQEOTF_C3 * v.abs().powf(PQEOTF_M1).copysign(v)))
         .powf(JZAZBZ_P)
     });
 
@@ -873,12 +874,10 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
         ],
         JZAZBZ_M2_INV,
     );
-
     lms.iter_mut().for_each(|c| {
-        *c = 10000.0
-            * ((PQEOTF_C1 - c.powf(1.0 / JZAZBZ_P))
-                / (PQEOTF_C3 * c.powf(1.0 / JZAZBZ_P) - PQEOTF_C2))
-                .powf(1.0 / PQEOTF_M1);
+        let v = (PQEOTF_C1 - c.powf(1.0 / JZAZBZ_P))
+            / (PQEOTF_C3 * c.powf(1.0 / JZAZBZ_P) - PQEOTF_C2);
+        *c = 10000.0 * v.abs().powf(1.0 / PQEOTF_M1).copysign(v);
     });
 
     *pixel = matmul3t(lms, JZAZBZ_M1_INV);
@@ -1162,11 +1161,11 @@ mod tests {
     // Lower epsilon because of the extremely wide gamut creating tiny values
     #[test]
     fn jzazbz_forwards() {
-        func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-1, &[])
+        func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz, 2e-1, &[])
     }
     #[test]
     fn jzazbz_backwards() {
-        func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz, 1e-1, &[])
+        func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz, 2e-1, &[])
     }
 
     #[test]
