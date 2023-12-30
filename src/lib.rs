@@ -246,14 +246,17 @@ impl TryFrom<&str> for Space {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, ()> {
         match value.to_ascii_lowercase().trim() {
-            "srgb" | "srgba" => Ok(Space::SRGB),
-            "hsv" | "hsva" => Ok(Space::HSV),
-            "lrgb" | "lrgba" | "rgb" | "rgba" => Ok(Space::LRGB),
-            "xyz" | "xyza" | "cie xyz" => Ok(Space::XYZ),
-            "lab" | "laba" | "cie l*a*b*" => Ok(Space::LAB),
-            "lch" | "lcha" | "cie l*c*hab" => Ok(Space::LCH),
-            "oklab" | "oklaba" => Ok(Space::OKLAB),
-            "oklch" | "oklcha" => Ok(Space::OKLCH),
+            "srgb" => Ok(Space::SRGB),
+            "hsv" => Ok(Space::HSV),
+            "lrgb" | "rgb" => Ok(Space::LRGB),
+            "xyz" | "cie xyz" | "ciexyz" => Ok(Space::XYZ),
+            // extra values so you can move to/from str
+            "lab" | "cie lab" | "cielab" | "cie l*a*b*" => Ok(Space::LAB),
+            "lch" | "cie lch" | "cielch" | "cie l*c*hab" => Ok(Space::LCH),
+            "oklab" => Ok(Space::OKLAB),
+            "oklch" => Ok(Space::OKLCH),
+            "jzazbz" => Ok(Space::JZAZBZ),
+            "jzczhz" => Ok(Space::JZCZHZ),
             _ => Err(()),
         }
     }
@@ -1362,6 +1365,13 @@ mod tests {
                     assert!(pixel[0] >= 0.0, "hsv H was {}", pixel[0]);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn space_strings() {
+        for space in Space::ALL {
+            assert_eq!(Ok(*space), Space::try_from(space.to_string().as_str()))
         }
     }
 
