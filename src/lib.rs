@@ -538,6 +538,68 @@ pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
 
 // ### Convert Space ### }}}
 
+// ### Str2Col ### {{{
+fn rm_paren<'a>(s: &'a str) -> &'a str {
+    if let (Some(f), Some(l)) = (s.chars().next(), s.chars().last()) {
+        if ['(', '[', '{'].contains(&f) && [')', ']', '}'].contains(&l) {
+            return &s[1..(s.len()-1)]
+        }
+    }
+    s
+}
+
+/// Convert a string into a space/array combo.
+/// Can separate with parentheses, spaces, ';', ':', or ','
+/// Ex: "0.2, 0.5, 0.6", "lch: 50 20 120" "oklab(0.2 0.6 90)"
+///
+/// Does not support alpha channel.
+pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])>{
+    s = rm_paren(s.trim());
+    let mut space = Space::SRGB;
+
+    // Return hex if valid
+    if let Ok(irgb) = hex_to_irgb(s) {
+        return Some((space, irgb_to_srgb(irgb)))
+    }
+
+    let seps = [',', ':', ';'];
+
+    // Find Space at front then trim
+    if let Some(i) = s.find(|c: char| c.is_whitespace() || seps.contains(&c) || ['(', '[', '{'].contains(&c) ) {
+        if let Ok(sp) = Space::try_from(&s[..i]) {
+            space = sp;
+            s = rm_paren(s[i..].trim_start_matches(|c: char| c.is_whitespace() || seps.contains(&c)));
+        }
+    }
+
+    // Split by separators + whitespace and parse
+    let splits = s
+        .split(|c: char| c.is_whitespace() || seps.contains(&c))
+        .filter_map(|s| match s.is_empty(){
+            true => None,
+            false => Some(s.parse::<f32>().ok()),
+        }).collect::<Vec<Option<f32>>>();
+
+    // Return floats if all 3 valid
+    if splits.len() == 3 {
+        if let (Some(a), Some(b), Some(c)) = (splits[0], splits[1], splits[2]) {
+            return Some((space, [a, b, c]))
+        }
+    }
+
+    None
+}
+
+/// Convert a string into a pixel of the requested Space
+/// Shorthand for str2col() -> convert_space()
+pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
+    str2col(s).map(|(from, mut col)| {
+        convert_space(from, to, &mut col);
+        col
+    })
+}
+// ### Str2Col ### }}}
+
 // ### FORWARD ### {{{
 
 /// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
@@ -1301,6 +1363,115 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn str2col_base() {
+        assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_tight() {
+        assert_eq!(str2col("0.2,0.5,0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_lop() {
+        assert_eq!(str2col("0.2,0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_bare() {
+        assert_eq!(str2col("0.2 0.5 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_bare_fat() {
+        assert_eq!(str2col("  0.2   0.5     0.6 "), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_paren() {
+        assert_eq!(str2col("(0.2 0.5 0.6)"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_paren2() {
+        assert_eq!(str2col("{ 0.2 : 0.5 : 0.6 }"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    }
+
+    #[test]
+    fn str2col_base_none() {
+        assert_eq!(str2col("  0.2   0.5     f"), None)
+    }
+
+    #[test]
+    fn str2col_base_none2() {
+        assert_eq!(str2col("0.2*0.5 0.6"), None)
+    }
+
+    #[test]
+    fn str2col_base_paren_none() {
+        assert_eq!(str2col("(0.2 0.5 0.6"), None)
+    }
+
+    #[test]
+    fn str2col_base_paren_none2() {
+        assert_eq!(str2col("0.2 0.5 0.6}"), None)
+    }
+
+    #[test]
+    fn str2col_lch() {
+        assert_eq!(str2col("lch(50, 30, 160)"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_lch_space() {
+        assert_eq!(str2col("lch 50, 30, 160"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_lch_colon() {
+        assert_eq!(str2col("lch:50:30:160"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_lch_semicolon() {
+        assert_eq!(str2col("lch;50;30;160"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_lch_mixed() {
+        assert_eq!(str2col("lch; (50,30,160)"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_lch_mixed2() {
+        assert_eq!(str2col("lch(50; 30; 160)"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_lch_mixed3() {
+        assert_eq!(str2col("lch   (50   30  160)"), Some((Space::LCH, [50.0, 30.0, 160.0])))
+    }
+
+    #[test]
+    fn str2col_hex() {
+        assert_eq!(str2col(HEX), Some((Space::SRGB, irgb_to_srgb(IRGB))))
+    }
+
+    #[test]
+    fn str2space_base() {
+        let pix = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB).expect("STR2SPACE_BASE FAIL");
+        let reference = [1.00000000, 0.00000000, 0.00000000];
+        pix_cmp(&[pix], &[reference], 1e-3, &[]);
+    }
+
+    #[test]
+    fn str2space_hex() {
+        let pix = str2space(" { #FF0000 } ", Space::OKLCH).expect("STR2SPACE_HEX FAIL");
+        let reference = [0.62792590, 0.25768453, 29.22319405];
+        pix_cmp(&[pix], &[reference], 1e-3, &[]);
     }
 }
 // ### TESTS ### }}}
