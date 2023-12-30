@@ -1117,6 +1117,7 @@ mod tests {
 
     // ### COLOUR-REFS ### }}}
 
+    // ### Comparison FNs ### {{{
     fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32, skips: &'static [usize]) {
         for (n, (i, r)) in input.iter().zip(reference.iter()).enumerate() {
             if skips.contains(&n) {
@@ -1173,6 +1174,31 @@ mod tests {
         reference: &[[f32; 3]],
     ) {
         conv_cmp_full(input_space, input, reference_space, reference, 1e-2, &[0, 7])
+    }
+    // ### Comparison FNs ### }}}
+
+    // ### Single FN Accuracy ### {{{
+    #[test]
+    fn irgb_to() {
+        assert_eq!(IRGB, srgb_to_irgb([0.2, 0.35, 0.95]))
+    }
+
+    #[test]
+    fn irgb_from() {
+        let mut srgb = irgb_to_srgb(IRGB);
+        srgb.iter_mut()
+            .for_each(|c| *c = (*c * 100.0).round() / 100.0);
+        assert_eq!([0.2, 0.35, 0.95], srgb)
+    }
+
+    #[test]
+    fn hex_to() {
+        assert_eq!(HEX, irgb_to_hex(IRGB))
+    }
+
+    #[test]
+    fn hex_from() {
+        assert_eq!(IRGB, hex_to_irgb(HEX).unwrap())
     }
 
     #[test]
@@ -1238,7 +1264,9 @@ mod tests {
     fn jzazbz_backwards() {
         func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz, 2e-1, &[])
     }
+    // ### Single FN Accuracy ### }}}
 
+    /// ### Other Tests ### {{{
     #[test]
     fn tree_jump() {
         // forwards
@@ -1324,29 +1352,6 @@ mod tests {
     }
 
     #[test]
-    fn irgb_to() {
-        assert_eq!(IRGB, srgb_to_irgb([0.2, 0.35, 0.95]))
-    }
-
-    #[test]
-    fn irgb_from() {
-        let mut srgb = irgb_to_srgb(IRGB);
-        srgb.iter_mut()
-            .for_each(|c| *c = (*c * 100.0).round() / 100.0);
-        assert_eq!([0.2, 0.35, 0.95], srgb)
-    }
-
-    #[test]
-    fn hex_to() {
-        assert_eq!(HEX, irgb_to_hex(IRGB))
-    }
-
-    #[test]
-    fn hex_from() {
-        assert_eq!(IRGB, hex_to_irgb(HEX).unwrap())
-    }
-
-    #[test]
     fn hue_wrap() {
         let it = (-1000..=2000).step_by(50);
         for a in it.clone() {
@@ -1375,6 +1380,9 @@ mod tests {
         }
     }
 
+    /// ### Other Tests ### }}}
+
+    // ### Str2Col ### {{{
     #[test]
     fn str2col_base() {
         assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
@@ -1483,5 +1491,6 @@ mod tests {
         let reference = [0.62792590, 0.25768453, 29.22319405];
         pix_cmp(&[pix], &[reference], 1e-3, &[]);
     }
+    // ### Str2Col ### }}}
 }
 // ### TESTS ### }}}
