@@ -24,6 +24,8 @@ name = "hk_data"
 name = "hk_palette"
 [[examples]]
 name = "hk_texture"
+[[examples]]
+name = "spectrum"
 
 [[bench]]
 name = "conversions"
