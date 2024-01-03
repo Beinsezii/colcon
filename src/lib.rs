@@ -186,10 +186,9 @@ pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function primarily used for ICtCP
-/// Unvalidated, WIP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 #[no_mangle]
-pub extern "C" fn _pq_eotf(e: f32) -> f32 {
+pub extern "C" fn pq_eotf(e: f32) -> f32 {
     let y = spowf(
         (spowf(e, 1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0)
             / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / PQEOTF_M2)),
@@ -212,10 +211,9 @@ pub extern "C" fn pqz_eotf(e: f32) -> f32 {
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function primarily used for ICtCP
-/// Unvalidated, WIP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
 #[no_mangle]
-pub extern "C" fn _pq_oetf(f: f32) -> f32 {
+pub extern "C" fn pq_oetf(f: f32) -> f32 {
     let y = f / 10000.0;
     spowf(
         (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
@@ -831,7 +829,7 @@ pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
 
     let mut lms = matmul3t(*pixel, ICTCP_M1);
     // lms prime
-    lms.iter_mut().for_each(|c| *c = _pq_oetf(*c));
+    lms.iter_mut().for_each(|c| *c = pq_oetf(*c));
     *pixel = matmul3t(lms, ICTCP_M2);
 }
 
@@ -1004,7 +1002,7 @@ pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
     // lms prime
     let mut lms = matmul3t(*pixel, ICTCP_M2_INV);
     // non-prime lms
-    lms.iter_mut().for_each(|c| *c = _pq_eotf(*c));
+    lms.iter_mut().for_each(|c| *c = pq_eotf(*c));
     *pixel = matmul3t(lms, ICTCP_M1_INV);
 }
 
