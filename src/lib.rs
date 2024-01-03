@@ -185,28 +185,52 @@ pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
     }
 }
 
-/// PQ Electro-Optical Transfer Function primarily used for ICtCP
+/// Dolby Perceptual Quantizer Electro-Optical Transfer Function primarily used for ICtCP
 /// Unvalidated, WIP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 #[no_mangle]
 pub extern "C" fn _pq_eotf(e: f32) -> f32 {
-    let y = (
-                (e.powf(1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0) /
-                (PQEOTF_C2 - PQEOTF_C3 * e.powf(1.0 / PQEOTF_M2))
-            ).powf(1.0 / PQEOTF_M1);
+    let y = spowf(
+                (spowf(e, 1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0) /
+                (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / PQEOTF_M2))
+            , 1.0 / PQEOTF_M1);
     10000.0 * y
 }
 
-/// Inverse PQ Electro-Optical Transfer Function primarily used for ICtCP
+/// Dolby Perceptual Quantizer Electro-Optical Transfer Function modified for JzAzBz
+/// Replaced PQEOTF_M2 with JZAZBZ_P
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
+#[no_mangle]
+pub extern "C" fn pqz_eotf(e: f32) -> f32 {
+    let y = spowf(
+                (spowf(e, 1.0 / JZAZBZ_P) - PQEOTF_C1).max(0.0) /
+                (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / JZAZBZ_P))
+            , 1.0 / PQEOTF_M1);
+    10000.0 * y
+}
+
+/// Dolby Perceptual Quantizer Optical-Electro Transfer Function primarily used for ICtCP
 /// Unvalidated, WIP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
 #[no_mangle]
 pub extern "C" fn _pq_oetf(f: f32) -> f32 {
     let y = f / 10000.0;
-    (
-        (PQEOTF_C1 + PQEOTF_C2 * y.powf(PQEOTF_M1)) /
-        (1.0 + PQEOTF_C3 * y.powf(PQEOTF_M1))
-    ).powf(PQEOTF_M2)
+    spowf(
+        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) /
+        (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1))
+    , PQEOTF_M2)
+}
+
+/// Dolby Perceptual Quantizer Optical-Electro Transfer Function modified for JzAzBz
+/// Replaced PQEOTF_M2 with JZAZBZ_P
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
+#[no_mangle]
+pub extern "C" fn pqz_oetf(f: f32) -> f32 {
+    let y = f / 10000.0;
+    spowf(
+        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) /
+        (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1))
+    , JZAZBZ_P)
 }
 
 // ### UTILITIES ### }}}
@@ -772,12 +796,7 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
         JZAZBZ_M1,
     );
 
-    lms.iter_mut().for_each(|e| {
-        let v = *e / 10000.0;
-        let v =
-            (PQEOTF_C1 + PQEOTF_C2 * spowf(v, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(v, PQEOTF_M1));
-        *e = spowf(v, JZAZBZ_P);
-    });
+    lms.iter_mut().for_each(|e| *e = pqz_oetf(*e));
 
     let lab = matmul3t(lms, JZAZBZ_M2);
 
@@ -962,11 +981,7 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
         JZAZBZ_M2_INV,
     );
 
-    lms.iter_mut().for_each(|c| {
-        let v = (PQEOTF_C1 - spowf(*c, 1.0 / JZAZBZ_P))
-            / (PQEOTF_C3 * spowf(*c, 1.0 / JZAZBZ_P) - PQEOTF_C2);
-        *c = 10000.0 * spowf(v, 1.0 / PQEOTF_M1);
-    });
+    lms.iter_mut().for_each(|c| *c = pqz_eotf(*c));
 
     *pixel = matmul3t(lms, JZAZBZ_M1_INV);
 
@@ -1315,24 +1330,16 @@ mod tests {
     }
 
     // ICtCp development tests.
-    // Disable for public commits
-    //
     // Inversion test in absence of solid reference
-    // #[test]
-    // fn pq_eotf_inversion() {
-    //     let mut pixel = LRGB.to_owned();
-    //     pixel.iter_mut().for_each(|p| p.iter_mut().for_each(|e| *e = _pq_eotf(*e)));
-    //     pixel.iter_mut().for_each(|p| p.iter_mut().for_each(|e| *e = _pq_oetf(*e)));
-    //     pix_cmp(&pixel, LRGB, 1e-3, &[]);
-    // }
-    // #[test]
-    // fn ictcp_inversion() {
-    //     let mut pixel = LRGB.to_owned();
-    //     pixel.iter_mut().for_each(|p| _lrgb_to_ictcp(p));
-    //     pixel.iter_mut().for_each(|p| _ictcp_to_lrgb(p));
-    //     pix_cmp(&pixel, LRGB, 1e-3, &[]);
-    // }
-
+    #[test]
+    fn ictcp_inversion() {
+        let mut pixel = LRGB.to_owned();
+        pixel.iter_mut().for_each(|p| _lrgb_to_ictcp(p));
+        pixel.iter_mut().for_each(|p| _ictcp_to_lrgb(p));
+        pix_cmp(&pixel, LRGB, 1e-1, &[]);
+    }
+    // Disable reference tests for public commits
+    //
     // #[test]
     // fn ictcp_forwards() {
     //     func_cmp(LRGB, _ICTCP2, _lrgb_to_ictcp)
