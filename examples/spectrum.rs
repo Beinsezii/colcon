@@ -27,6 +27,7 @@ fn main() {
     }
 
     for (space, filename) in [
+        (Space::HSV, "hsv"),
         (Space::LCH, "cie_lab"),
         (Space::OKLCH, "oklab"),
         (Space::JZCZHZ, "jzazbz"),
@@ -45,6 +46,7 @@ fn main() {
             _ => [0.0, 0.0, 0.0],
         };
         let div = match space {
+            Space::HSV => [100.0, 100.0, 360.0],
             Space::OKLCH => [100.0, 400.0, 1.0],
             Space::JZCZHZ => [5650.0, 5650.0, 1.0],
             _ => [1.0, 1.0, 1.0],
@@ -52,7 +54,9 @@ fn main() {
         data.iter_mut()
             .for_each(|p| {p.iter_mut()
                 .zip(add.iter()).zip(div.iter())
-                .for_each(|((c, a), d)| {*c += *a; *c /= *d})});
+                .for_each(|((c, a), d)| {*c += *a; *c /= *d});
+                if space == Space::HSV  {*p = [p[2], p[1], p[0]]}
+            });
         convert_space_chunked(space, Space::SRGB, &mut data);
 
         write_ppm(&data, filename)
