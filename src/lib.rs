@@ -14,6 +14,10 @@
 use core::cmp::Ordering;
 use core::ffi::{c_char, CStr};
 
+fn spowf(n: f32, power: f32) -> f32 {
+    n.abs().powf(power).copysign(n)
+}
+
 // ### CONSTS ### {{{
 
 /// Standard Illuminant D65.
@@ -157,11 +161,7 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 }
 // ### MATRICES ### }}}
 
-// ### UTILITIES ### {{{
-
-fn spowf(n: f32, power: f32) -> f32 {
-    n.abs().powf(power).copysign(n)
-}
+// ### TRANSFER FUNCTIONS ### {{{
 
 /// sRGB Electro-Optical Transfer Function
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
@@ -185,16 +185,36 @@ pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
     }
 }
 
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
+fn pq_eotf_common(e: f32, m2: f32) -> f32 {
+    let y = spowf(
+        (spowf(e, 1.0 / m2) - PQEOTF_C1).max(0.0) / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / m2)),
+        1.0 / PQEOTF_M1,
+    );
+    10000.0 * y
+}
+
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
+fn pq_oetf_common(f: f32, m2: f32) -> f32 {
+    let y = f / 10000.0;
+    spowf(
+        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
+        m2,
+    )
+}
+
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function primarily used for ICtCP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 #[no_mangle]
 pub extern "C" fn pq_eotf(e: f32) -> f32 {
-    let y = spowf(
-        (spowf(e, 1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0)
-            / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / PQEOTF_M2)),
-        1.0 / PQEOTF_M1,
-    );
-    10000.0 * y
+    pq_eotf_common(e, PQEOTF_M2)
+}
+
+/// Dolby Perceptual Quantizer Optical-Electro Transfer Function primarily used for ICtCP
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
+#[no_mangle]
+pub extern "C" fn pq_oetf(f: f32) -> f32 {
+    pq_oetf_common(f, PQEOTF_M2)
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function modified for JzAzBz
@@ -202,23 +222,7 @@ pub extern "C" fn pq_eotf(e: f32) -> f32 {
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 #[no_mangle]
 pub extern "C" fn pqz_eotf(e: f32) -> f32 {
-    let y = spowf(
-        (spowf(e, 1.0 / JZAZBZ_P) - PQEOTF_C1).max(0.0)
-            / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / JZAZBZ_P)),
-        1.0 / PQEOTF_M1,
-    );
-    10000.0 * y
-}
-
-/// Dolby Perceptual Quantizer Optical-Electro Transfer Function primarily used for ICtCP
-/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
-#[no_mangle]
-pub extern "C" fn pq_oetf(f: f32) -> f32 {
-    let y = f / 10000.0;
-    spowf(
-        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
-        PQEOTF_M2,
-    )
+    pq_eotf_common(e, JZAZBZ_P)
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function modified for JzAzBz
@@ -226,14 +230,10 @@ pub extern "C" fn pq_oetf(f: f32) -> f32 {
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
 #[no_mangle]
 pub extern "C" fn pqz_oetf(f: f32) -> f32 {
-    let y = f / 10000.0;
-    spowf(
-        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
-        JZAZBZ_P,
-    )
+    pq_oetf_common(f, JZAZBZ_P)
 }
 
-// ### UTILITIES ### }}}
+// ### TRANSFER FUNCTIONS ### }}}
 
 // ### Helmholtz-Kohlrausch ### {{{
 
