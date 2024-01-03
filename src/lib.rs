@@ -129,14 +129,14 @@ const ICTCP_M2: [[f32; 3]; 3] = [
 ];
 
 const ICTCP_M1_INV: [[f32; 3]; 3] = [
-    [ 3.4366066943, -2.5064521187,  0.0698454243],
-    [-0.7913295556,  1.9836004518, -0.1922708962],
-    [-0.0259498997, -0.0989137147,  1.1248636144]
+    [3.4366066943, -2.5064521187, 0.0698454243],
+    [-0.7913295556, 1.9836004518, -0.1922708962],
+    [-0.0259498997, -0.0989137147, 1.1248636144],
 ];
 const ICTCP_M2_INV: [[f32; 3]; 3] = [
-    [ 1.          ,  0.008609037 ,  0.111029625 ],
-    [ 1.          , -0.008609037 , -0.111029625 ],
-    [ 1.          ,  0.5600313357, -0.320627175 ]
+    [1., 0.008609037, 0.111029625],
+    [1., -0.008609037, -0.111029625],
+    [1., 0.5600313357, -0.320627175],
 ];
 /// 3 * 3x3 Matrix multiply
 fn matmul3(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
@@ -191,9 +191,10 @@ pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
 #[no_mangle]
 pub extern "C" fn _pq_eotf(e: f32) -> f32 {
     let y = spowf(
-                (spowf(e, 1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0) /
-                (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / PQEOTF_M2))
-            , 1.0 / PQEOTF_M1);
+        (spowf(e, 1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0)
+            / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / PQEOTF_M2)),
+        1.0 / PQEOTF_M1,
+    );
     10000.0 * y
 }
 
@@ -203,9 +204,10 @@ pub extern "C" fn _pq_eotf(e: f32) -> f32 {
 #[no_mangle]
 pub extern "C" fn pqz_eotf(e: f32) -> f32 {
     let y = spowf(
-                (spowf(e, 1.0 / JZAZBZ_P) - PQEOTF_C1).max(0.0) /
-                (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / JZAZBZ_P))
-            , 1.0 / PQEOTF_M1);
+        (spowf(e, 1.0 / JZAZBZ_P) - PQEOTF_C1).max(0.0)
+            / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / JZAZBZ_P)),
+        1.0 / PQEOTF_M1,
+    );
     10000.0 * y
 }
 
@@ -216,9 +218,9 @@ pub extern "C" fn pqz_eotf(e: f32) -> f32 {
 pub extern "C" fn _pq_oetf(f: f32) -> f32 {
     let y = f / 10000.0;
     spowf(
-        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) /
-        (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1))
-    , PQEOTF_M2)
+        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
+        PQEOTF_M2,
+    )
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function modified for JzAzBz
@@ -228,9 +230,9 @@ pub extern "C" fn _pq_oetf(f: f32) -> f32 {
 pub extern "C" fn pqz_oetf(f: f32) -> f32 {
     let y = f / 10000.0;
     spowf(
-        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) /
-        (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1))
-    , JZAZBZ_P)
+        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
+        JZAZBZ_P,
+    )
 }
 
 // ### UTILITIES ### }}}
@@ -831,7 +833,6 @@ pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
     // lms prime
     lms.iter_mut().for_each(|c| *c = _pq_oetf(*c));
     *pixel = matmul3t(lms, ICTCP_M2);
-
 }
 
 /// Convert from CIE LAB to CIE LCH.
@@ -1176,13 +1177,19 @@ mod tests {
             }
             for (a, b) in i.iter().zip(r.iter()) {
                 if (a - b).abs() > epsilon || !a.is_finite() || !b.is_finite() {
-                    let dev = i.iter().zip(r.iter()).map(|(ix, rx)| ((ix - rx) + 1.0).abs().powi(2)).sum::<f32>();
+                    let dev = i
+                        .iter()
+                        .zip(r.iter())
+                        .map(|(ix, rx)| ((ix - rx) + 1.0).abs().powi(2))
+                        .sum::<f32>();
                     err.push_str(&format!(
                         "\nA{n}: {:.8} {:.8} {:.8}\nB{n}: {:.8} {:.8} {:.8}\nERR²: {}\n",
                         i[0], i[1], i[2], r[0], r[1], r[2], dev
                     ));
-                    if dev.is_finite() {cum_err += dev};
-                    break
+                    if dev.is_finite() {
+                        cum_err += dev
+                    };
+                    break;
                 }
             }
         }

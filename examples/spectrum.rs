@@ -4,16 +4,17 @@ const WIDTH: usize = 360;
 const HEIGHT: usize = 100;
 
 fn write_ppm(pixels: &[[f32; 3]], name: &str) {
-        std::fs::write(
-            format!("{}.ppm", name),
-            pixels.iter().map(|pixel| srgb_to_irgb(*pixel))
-                .fold(format!("P3 {} {} 255", WIDTH, HEIGHT), |acc, it| {
-                    acc + "\n" + &it.map(|c| c.to_string()).join(" ")
-                })
-                + "\n", // newline needed for some libs
-        )
-        .unwrap()
-
+    std::fs::write(
+        format!("{}.ppm", name),
+        pixels
+            .iter()
+            .map(|pixel| srgb_to_irgb(*pixel))
+            .fold(format!("P3 {} {} 255", WIDTH, HEIGHT), |acc, it| {
+                acc + "\n" + &it.map(|c| c.to_string()).join(" ")
+            })
+            + "\n", // newline needed for some libs
+    )
+    .unwrap()
 }
 
 fn main() {
@@ -51,21 +52,31 @@ fn main() {
             Space::JZCZHZ => [5650.0, 5650.0, 1.0],
             _ => [1.0, 1.0, 1.0],
         };
-        data.iter_mut()
-            .for_each(|p| {p.iter_mut()
-                .zip(add.iter()).zip(div.iter())
-                .for_each(|((c, a), d)| {*c += *a; *c /= *d});
-                if space == Space::HSV  {*p = [p[2], p[1], p[0]]}
-            });
+        data.iter_mut().for_each(|p| {
+            p.iter_mut()
+                .zip(add.iter())
+                .zip(div.iter())
+                .for_each(|((c, a), d)| {
+                    *c += *a;
+                    *c /= *d
+                });
+            if space == Space::HSV {
+                *p = [p[2], p[1], p[0]]
+            }
+        });
         convert_space_chunked(space, Space::SRGB, &mut data);
 
         write_ppm(&data, filename)
     }
 
-    let mut ictcp: Vec<[f32; 3]> = pixels.iter().map(|a| a.to_vec()).reduce(|mut acc, mut it| {
+    let mut ictcp: Vec<[f32; 3]> = pixels
+        .iter()
+        .map(|a| a.to_vec())
+        .reduce(|mut acc, mut it| {
             acc.append(&mut it);
             acc
-        }).unwrap();
+        })
+        .unwrap();
     ictcp.iter_mut().for_each(|p| {
         p[0] += 15.0;
         p[0] /= 800.0;
