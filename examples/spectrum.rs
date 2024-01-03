@@ -1,9 +1,22 @@
 use colcon::{convert_space_chunked, srgb_to_irgb, Space};
 
-fn main() {
-    const WIDTH: usize = 360;
-    const HEIGHT: usize = 100;
+const WIDTH: usize = 360;
+const HEIGHT: usize = 100;
 
+fn write_ppm(pixels: &[[f32; 3]], name: &str) {
+        std::fs::write(
+            format!("{}.ppm", name),
+            pixels.iter().map(|pixel| srgb_to_irgb(*pixel))
+                .fold(format!("P3 {} {} 255", WIDTH, HEIGHT), |acc, it| {
+                    acc + "\n" + &it.map(|c| c.to_string()).join(" ")
+                })
+                + "\n", // newline needed for some libs
+        )
+        .unwrap()
+
+}
+
+fn main() {
     let mut pixels = [[[65.0, 0.0, 0.0]; WIDTH]; HEIGHT];
 
     for x in 0..WIDTH {
@@ -42,15 +55,21 @@ fn main() {
                 .for_each(|((c, a), d)| {*c += *a; *c /= *d})});
         convert_space_chunked(space, Space::SRGB, &mut data);
 
-        std::fs::write(
-            format!("{}.ppm", filename),
-            data.into_iter()
-                .map(|pixel| srgb_to_irgb(pixel))
-                .fold(format!("P3 {} {} 255", WIDTH, HEIGHT), |acc, it| {
-                    acc + "\n" + &it.map(|c| c.to_string()).join(" ")
-                })
-                + "\n", // newline needed for some libs
-        )
-        .unwrap()
+        write_ppm(&data, filename)
     }
+
+    let mut ictcp: Vec<[f32; 3]> = pixels.iter().map(|a| a.to_vec()).reduce(|mut acc, mut it| {
+            acc.append(&mut it);
+            acc
+        }).unwrap();
+    ictcp.iter_mut().for_each(|p| {
+        p[0] += 15.0;
+        p[0] /= 800.0;
+        p[1] /= 800.0;
+        p[2] += 60.0;
+        colcon::lch_to_lab(p);
+        colcon::_ictcp_to_lrgb(p);
+        colcon::lrgb_to_srgb(p);
+    });
+    write_ppm(&ictcp, "ictcp");
 }
