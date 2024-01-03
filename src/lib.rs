@@ -115,6 +115,29 @@ const JZAZBZ_M2_INV: [[f32; 3]; 3] = [
     [1., -0.1386050433, -0.0580473162],
     [1., -0.096019242, -0.8118918961],
 ];
+
+// ICtCp
+const ICTCP_M1: [[f32; 3]; 3] = [
+    [1688.0 / 4096.0, 2146.0 / 4096.0, 262.0 / 4096.0],
+    [683.0 / 4096.0, 2951.0 / 4096.0, 462.0 / 4096.0],
+    [99.0 / 4096.0, 309.0 / 4096.0, 3688.0 / 4096.0],
+];
+const ICTCP_M2: [[f32; 3]; 3] = [
+    [2048.0 / 4096.0, 2048.0 / 4096.0, 0.0 / 4096.0],
+    [6610.0 / 4096.0, -13613.0 / 4096.0, 7003.0 / 4096.0],
+    [17933.0 / 4096.0, -17390.0 / 4096.0, -543.0 / 4096.0],
+];
+
+const ICTCP_M1_INV: [[f32; 3]; 3] = [
+    [ 3.4366066943, -2.5064521187,  0.0698454243],
+    [-0.7913295556,  1.9836004518, -0.1922708962],
+    [-0.0259498997, -0.0989137147,  1.1248636144]
+];
+const ICTCP_M2_INV: [[f32; 3]; 3] = [
+    [ 1.          ,  0.008609037 ,  0.111029625 ],
+    [ 1.          , -0.008609037 , -0.111029625 ],
+    [ 1.          ,  0.5600313357, -0.320627175 ]
+];
 /// 3 * 3x3 Matrix multiply
 fn matmul3(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
     [
@@ -161,6 +184,31 @@ pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
         (1.0 + SRGBEOTF_ALPHA) * (n.powf(1.0 / SRGBEOTF_GAMMA)) - SRGBEOTF_ALPHA
     }
 }
+
+/// PQ Electro-Optical Transfer Function primarily used for ICtCP
+/// Unvalidated, WIP
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
+#[no_mangle]
+pub extern "C" fn _pq_eotf(e: f32) -> f32 {
+    let y = (
+                (e.powf(1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0) /
+                (PQEOTF_C2 - PQEOTF_C3 * e.powf(1.0 / PQEOTF_M2))
+            ).powf(1.0 / PQEOTF_M1);
+    10000.0 * y
+}
+
+/// Inverse PQ Electro-Optical Transfer Function primarily used for ICtCP
+/// Unvalidated, WIP
+/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
+#[no_mangle]
+pub extern "C" fn _pq_oetf(f: f32) -> f32 {
+    let y = f / 10000.0;
+    (
+        (PQEOTF_C1 + PQEOTF_C2 * y.powf(PQEOTF_M1)) /
+        (1.0 + PQEOTF_C3 * y.powf(PQEOTF_M1))
+    ).powf(PQEOTF_M2)
+}
+
 // ### UTILITIES ### }}}
 
 // ### Helmholtz-Kohlrausch ### {{{
@@ -747,60 +795,25 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
 
 // }
 
-// Disabled until the reference fuzziness is resolved
-/// Convert LRGB to ICtCp
+/// Convert LRGB to ICtCp. Unvalidated, WIP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
-// pub extern "C" fn lrgb_to_ictcp(pixel: &mut [f32; 3]) {
+pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
+    // <https://www.itu.int/rec/R-REC-BT.2020/en>
+    // let alpha = 1.09929682680944;
+    // let beta = 0.018053968510807;
+    // let bt2020 = |e: &mut f32| {
+    //     *e = if *e < beta {4.5 * *e}
+    //     else {alpha * e.powf(0.45) - (alpha - 1.0)}
+    // };
+    // pixel.iter_mut().for_each(|c| bt2020(c));
 
-//     let pq_eotf = |c: &mut f32| *c = 10000.0 *
-//         (
-//             (c.powf(1.0 / PQEOTF_M2) - PQEOTF_C1).max(0.0) /
-//             (PQEOTF_C2 - PQEOTF_C3 * c.powf(1.0 / PQEOTF_M2))
-//         )
-//         .powf(1.0 / PQEOTF_M1);
+    let mut lms = matmul3t(*pixel, ICTCP_M1);
+    // lms prime
+    lms.iter_mut().for_each(|c| *c = _pq_oetf(*c));
+    *pixel = matmul3t(lms, ICTCP_M2);
 
-//     let pq_eotf_inverse = |c: &mut f32| *c =
-//         (
-//             (PQEOTF_C1 + PQEOTF_C2 * (*c / 10000.0).powf(PQEOTF_M1)) /
-//             (1.0 + PQEOTF_C3 * (*c / 10000.0).powf(PQEOTF_M1))
-//         )
-//         .powf(PQEOTF_M2);
-
-//     // <https://www.itu.int/rec/R-REC-BT.2020/en>
-//     let alpha = 1.09929682680944;
-//     let beta = 0.018053968510807;
-//     let bt2020 = |e: &mut f32| {
-//         *e = if *e < beta {4.5 * *e}
-//         else {alpha * e.powf(0.45) - (alpha - 1.0)}
-//     };
-//     pixel.iter_mut().for_each(|c| bt2020(c));
-//     println!("{:?}\n[0.28192627, 0.34645211, 0.88486558]", pixel);
-
-//     let mut lms = matmul3t(*pixel, [
-//         [1688.0, 2146.0, 262.0],
-//         [683.0, 2951.0, 462.0],
-//         [99.0, 309.0, 3688.0],
-//     ]);
-//     lms.iter_mut().for_each(|c| *c /= 4096.0);
-
-//     // lms prime
-//     lms.iter_mut().for_each(|c| pq_eotf_inverse(c));
-
-//     // *pixel = matmul3t(lms, [
-//     //     [2048.0, 2048.0, 0.0],
-//     //     [6610.0, -13613.0, 7003.0],
-//     //     [17933.0, -17390.0, -543.0],
-//     // ]);
-//     // pixel.iter_mut().for_each(|c| *c /= 4096.0)
-
-//     *pixel = [
-//         lms[0] * 0.5 + lms[1] * 0.5,
-//         (6610.0 * lms[0] - 13613.0 * lms[1] + 7003.0 * lms[2]) / 4096.0,
-//         (17933.0 * lms[0] - 17390.0 * lms[1] - 543.0 * lms[2]) / 4096.0,
-//     ];
-
-// }
+}
 
 /// Convert from CIE LAB to CIE LCH.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
@@ -968,12 +981,16 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 
 // }
 
-/// Convert ICtCp to LRGB
+/// Convert ICtCp to LRGB. Unvalidated, WIP
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
-// pub extern "C" fn ictcp_to_lrgb(pixel: &mut [f32; 3]) {
-
-// }
+pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
+    // lms prime
+    let mut lms = matmul3t(*pixel, ICTCP_M2_INV);
+    // non-prime lms
+    lms.iter_mut().for_each(|c| *c = _pq_eotf(*c));
+    *pixel = matmul3t(lms, ICTCP_M1_INV);
+}
 
 /// Convert from CIE LCH to CIE LAB.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
@@ -1119,22 +1136,43 @@ mod tests {
         [-0.78600741, 2864.18670045, 47.55048725],
     ];
 
+    const _ICTCP2: &'static [[f32; 3]] = &[
+        [0.00000073, -0.00000000, 0.00000000],
+        [0.08575747, -0.02634122, 0.09894511],
+        [0.13074534, -0.11285245, -0.02347905],
+        [0.06172962, 0.10943968, -0.05098289],
+        [0.14470233, -0.10333260, 0.01679849],
+        [0.13713260, -0.00256371, -0.03877447],
+        [0.09966927, 0.10169935, 0.04737088],
+        [0.14994586, -0.00000057, 0.00000710],
+        [0.58829375, 0.11054605, -0.09104248],
+        [140.00646866, -38.81567400, 54.38089910],
+    ];
+
     // ### COLOUR-REFS ### }}}
 
     // ### Comparison FNs ### {{{
     fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32, skips: &'static [usize]) {
+        let mut err = String::new();
+        let mut cum_err = 0.0;
         for (n, (i, r)) in input.iter().zip(reference.iter()).enumerate() {
             if skips.contains(&n) {
                 continue;
             }
             for (a, b) in i.iter().zip(r.iter()) {
                 if (a - b).abs() > epsilon || !a.is_finite() || !b.is_finite() {
-                    panic!(
-                        "\nA{n}: {:.8} {:.8} {:.8}\nB{n}: {:.8} {:.8} {:.8}\n",
-                        i[0], i[1], i[2], r[0], r[1], r[2]
-                    )
+                    let dev = i.iter().zip(r.iter()).map(|(ix, rx)| ((ix - rx) + 1.0).abs().powi(2)).sum::<f32>();
+                    err.push_str(&format!(
+                        "\nA{n}: {:.8} {:.8} {:.8}\nB{n}: {:.8} {:.8} {:.8}\nERR²: {}\n",
+                        i[0], i[1], i[2], r[0], r[1], r[2], dev
+                    ));
+                    if dev.is_finite() {cum_err += dev};
+                    break
                 }
             }
+        }
+        if !err.is_empty() {
+            panic!("{}\nCUM ERR²: {}", err, cum_err)
         }
     }
 
@@ -1275,6 +1313,34 @@ mod tests {
     fn jzazbz_backwards() {
         func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz, 2e-1, &[])
     }
+
+    // ICtCp development tests.
+    // Disable for public commits
+    //
+    // Inversion test in absence of solid reference
+    // #[test]
+    // fn pq_eotf_inversion() {
+    //     let mut pixel = LRGB.to_owned();
+    //     pixel.iter_mut().for_each(|p| p.iter_mut().for_each(|e| *e = _pq_eotf(*e)));
+    //     pixel.iter_mut().for_each(|p| p.iter_mut().for_each(|e| *e = _pq_oetf(*e)));
+    //     pix_cmp(&pixel, LRGB, 1e-3, &[]);
+    // }
+    // #[test]
+    // fn ictcp_inversion() {
+    //     let mut pixel = LRGB.to_owned();
+    //     pixel.iter_mut().for_each(|p| _lrgb_to_ictcp(p));
+    //     pixel.iter_mut().for_each(|p| _ictcp_to_lrgb(p));
+    //     pix_cmp(&pixel, LRGB, 1e-3, &[]);
+    // }
+
+    // #[test]
+    // fn ictcp_forwards() {
+    //     func_cmp(LRGB, _ICTCP2, _lrgb_to_ictcp)
+    // }
+    // #[test]
+    // fn ictcp_backwards() {
+    //     func_cmp(_ICTCP2, LRGB, _ictcp_to_lrgb)
+    // }
     // ### Single FN Accuracy ### }}}
 
     /// ### Other Tests ### {{{
