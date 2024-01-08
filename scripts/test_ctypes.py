@@ -35,10 +35,10 @@ colcon.lrgb_to_srgb.argtypes = [cpixel]
 colcon.srgb_to_hsv.argtypes = [cpixel]
 
 # extra
-colcon.expand_gamma.argtypes = [ctypes.c_float]
-colcon.expand_gamma.restype = ctypes.c_float
-colcon.correct_gamma.argtypes = [ctypes.c_float]
-colcon.correct_gamma.restype = ctypes.c_float
+colcon.srgb_eotf.argtypes = [ctypes.c_float]
+colcon.srgb_eotf.restype = ctypes.c_float
+colcon.srgb_eotf_inverse.argtypes = [ctypes.c_float]
+colcon.srgb_eotf_inverse.restype = ctypes.c_float
 colcon.hk_high2023.argtypes = [cpixel]
 colcon.hk_high2023_comp.argtypes = [cpixel]
 
