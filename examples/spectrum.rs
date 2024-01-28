@@ -24,15 +24,22 @@ fn main() {
         (Space::OKLCH, "oklab"),
         (Space::JZCZHZ, "jzazbz"),
     ] {
-        let mut data: Vec<[f32; 3]> = (0..HEIGHT).map(|h|
-            (0..WIDTH).map(|w| [
-                match space {
-                    Space::OKLCH => 0.70,
-                    Space::JZCZHZ => 0.50,
-                    _ => 0.65,
-                },
-                1.0 - h as f32 / 100.0, w as f32 ]
-            ).collect::<Vec<[f32; 3]>>())
+        let mut data: Vec<[f32; 3]> = (0..HEIGHT)
+            .map(|h| {
+                (0..WIDTH)
+                    .map(|w| {
+                        [
+                            match space {
+                                Space::OKLCH => 0.70,
+                                Space::JZCZHZ => 0.50,
+                                _ => 0.65,
+                            },
+                            1.0 - h as f32 / 100.0,
+                            w as f32,
+                        ]
+                    })
+                    .collect::<Vec<[f32; 3]>>()
+            })
             .flatten()
             .collect();
 
