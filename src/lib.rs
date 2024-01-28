@@ -438,6 +438,155 @@ impl Space {
 
     /// RGB/Tristimulus color spaces
     pub const TRI: &'static [Space] = &[Space::SRGB, Space::LRGB, Space::XYZ];
+
+    // ### GENREATED QUANTILE FNS ### {{{
+
+    /// Retrieves the 0 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant0(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.0, 0.0, 0.0],
+            &Space::HSV => [f32::INFINITY, 0.0, 0.0],
+            &Space::LRGB => [0.0, 0.0, 0.0],
+            &Space::XYZ => [0.0, 0.0, 0.0],
+            &Space::LAB => [0.0, -86.18286, -107.85035],
+            &Space::LCH => [0.0, 0.0, f32::INFINITY],
+            &Space::OKLAB => [0.0, -0.23392147, -0.31162056],
+            &Space::OKLCH => [0.0, 0.0, f32::INFINITY],
+            &Space::JZAZBZ => [0.0, -0.016248252, -0.02494995],
+            &Space::JZCZHZ => [0.0, 0.0, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 1 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant1(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.01, 0.01, 0.01],
+            &Space::HSV => [f32::INFINITY, 0.100000024, 0.21],
+            &Space::LRGB => [0.0007739938, 0.0007739938, 0.0007739938],
+            &Space::XYZ => [0.017851105, 0.013837883, 0.008856518],
+            &Space::LAB => [11.849316, -76.75052, -92.486176],
+            &Space::LCH => [11.849316, 7.061057, f32::INFINITY],
+            &Space::OKLAB => [0.24800068, -0.20801869, -0.26735336],
+            &Space::OKLCH => [0.24800068, 0.020308746, f32::INFINITY],
+            &Space::JZAZBZ => [0.00098745, -0.014176477, -0.021382865],
+            &Space::JZCZHZ => [0.00098745, 0.0010760628, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 5 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant5(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.05, 0.05, 0.05],
+            &Space::HSV => [f32::INFINITY, 0.22500001, 0.37],
+            &Space::LRGB => [0.0039359396, 0.0039359396, 0.0039359396],
+            &Space::XYZ => [0.051534407, 0.03933429, 0.024504842],
+            &Space::LAB => [23.45013, -63.685505, -73.55361],
+            &Space::LCH => [23.45013, 16.198933, f32::INFINITY],
+            &Space::OKLAB => [0.35184953, -0.17341, -0.21155143],
+            &Space::OKLCH => [0.35184953, 0.045713905, f32::INFINITY],
+            &Space::JZAZBZ => [0.0022844237, -0.011591051, -0.01684369],
+            &Space::JZCZHZ => [0.0022844237, 0.0026996532, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 10 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant10(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.1, 0.1, 0.1],
+            &Space::HSV => [f32::INFINITY, 0.31868133, 0.46],
+            &Space::LRGB => [0.010022826, 0.010022826, 0.010022826],
+            &Space::XYZ => [0.08368037, 0.06354216, 0.042235486],
+            &Space::LAB => [30.28909, -53.02161, -59.601402],
+            &Space::LCH => [30.28909, 23.07717, f32::INFINITY],
+            &Space::OKLAB => [0.41310564, -0.14668256, -0.17003474],
+            &Space::OKLCH => [0.41310564, 0.064760715, f32::INFINITY],
+            &Space::JZAZBZ => [0.003282838, -0.009647734, -0.013499062],
+            &Space::JZCZHZ => [0.003282838, 0.0040425155, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 90 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant90(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.9, 0.9, 0.9],
+            &Space::HSV => [f32::INFINITY, 0.95604396, 0.97],
+            &Space::LRGB => [0.78741235, 0.78741235, 0.78741235],
+            &Space::XYZ => [0.5299013, 0.66003364, 0.7995572],
+            &Space::LAB => [84.99813, 66.65242, 63.00903],
+            &Space::LCH => [84.99813, 94.23378, f32::INFINITY],
+            &Space::OKLAB => [0.8573815, 0.17646486, 0.1382165],
+            &Space::OKLCH => [0.8573815, 0.24145529, f32::INFINITY],
+            &Space::JZAZBZ => [0.012802434, 0.010417011, 0.012386818],
+            &Space::JZCZHZ => [0.012802434, 0.017864665, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 95 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant95(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.95, 0.95, 0.95],
+            &Space::HSV => [f32::INFINITY, 0.9814815, 0.99],
+            &Space::LRGB => [0.8900055, 0.8900055, 0.8900055],
+            &Space::XYZ => [0.60459995, 0.7347975, 0.8984568],
+            &Space::LAB => [88.676025, 74.66978, 72.00491],
+            &Space::LCH => [88.676025, 103.532455, f32::INFINITY],
+            &Space::OKLAB => [0.8893366, 0.20846832, 0.15682206],
+            &Space::OKLCH => [0.8893366, 0.26152557, f32::INFINITY],
+            &Space::JZAZBZ => [0.013801003, 0.012809383, 0.0145695675],
+            &Space::JZCZHZ => [0.013801003, 0.019513208, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 99 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant99(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [0.99, 0.99, 0.99],
+            &Space::HSV => [f32::INFINITY, 1.0, 1.0],
+            &Space::LRGB => [0.9774019, 0.9774019, 0.9774019],
+            &Space::XYZ => [0.73368907, 0.84591866, 0.99041635],
+            &Space::LAB => [93.70696, 85.19584, 82.5843],
+            &Space::LCH => [93.70696, 116.85265, f32::INFINITY],
+            &Space::OKLAB => [0.93844295, 0.246955, 0.17727482],
+            &Space::OKLCH => [0.93844295, 0.28863373, f32::INFINITY],
+            &Space::JZAZBZ => [0.015377459, 0.01548976, 0.017363891],
+            &Space::JZCZHZ => [0.015377459, 0.021917712, f32::INFINITY],
+        }
+    }
+    /// Retrieves the 100 quantile for mapping a given Space back to SRGB.
+    /// This is useful for things like creating adjustable values in Space
+    /// that represent most of the SRGB range without clipping.
+    /// Wrapping Hue values are set to f32::INFINITY
+    pub const fn srgb_quant100(&self) -> [f32; 3] {
+        match self {
+            &Space::SRGB => [1.0, 1.0, 1.0],
+            &Space::HSV => [f32::INFINITY, 1.0, 1.0],
+            &Space::LRGB => [1.0, 1.0, 1.0],
+            &Space::XYZ => [0.9505, 1.0, 1.089],
+            &Space::LAB => [100.0, 98.25632, 94.489494],
+            &Space::LCH => [100.0, 133.80594, f32::INFINITY],
+            &Space::OKLAB => [1.0000017, 0.2762708, 0.19848984],
+            &Space::OKLCH => [1.0000017, 0.32260108, f32::INFINITY],
+            &Space::JZAZBZ => [0.01758024, 0.017218411, 0.020799855],
+            &Space::JZCZHZ => [0.01758024, 0.024976956, f32::INFINITY],
+        }
+    }
+
+    // ### GENREATED QUANTILE FNS ### }}}
 }
 
 // ### Space ### }}}
