@@ -268,7 +268,7 @@ pub extern "C" fn hk_high2023(lch: &[f32; 3]) -> f32 {
 /// High et al 2023 implementation.
 #[no_mangle]
 pub extern "C" fn hk_high2023_comp(lch: &mut [f32; 3]) {
-    lch[0] += HIGH2023_MEAN * (lch[1] / 100.0) - hk_high2023(lch)
+    lch[0] += (HIGH2023_MEAN - hk_high2023(lch)) * (lch[1] / 100.0)
 }
 
 // ### Helmholtz-Kohlrausch ### }}}
