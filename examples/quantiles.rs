@@ -5,25 +5,6 @@ fn main() {
     const STEPS: usize = 100;
     let stepsf = STEPS as f32;
 
-    let spaces = [
-        (Space::SRGB, "Space::SRGB"),
-        (Space::HSV, "Space::HSV"),
-        (Space::LRGB, "Space::LRGB"),
-        (Space::XYZ, "Space::XYZ"),
-        (Space::LAB, "Space::LAB"),
-        (Space::LCH, "Space::LCH"),
-        (Space::OKLAB, "Space::OKLAB"),
-        (Space::OKLCH, "Space::OKLCH"),
-        (Space::JZAZBZ, "Space::JZAZBZ"),
-        (Space::JZCZHZ, "Space::JZCZHZ"),
-    ];
-
-    assert!(Space::ALL.iter().all(|s| spaces
-        .iter()
-        .map(|(sp, _st)| sp)
-        .find(|sp| sp == &s)
-        .is_some()));
-
     let srgb = (0..=STEPS)
         .map(move |a| {
             (0..=STEPS)
@@ -45,7 +26,7 @@ fn main() {
 
     let mut results = Vec::new();
 
-    for (space, _space_str) in spaces.iter() {
+    for space in Space::ALL.iter() {
         let mut quantiles = [[123456789.0; 3]; QUANTILES.len()];
         let mut colors = srgb.clone();
         convert_space_chunked(Space::SRGB, *space, &mut colors);
@@ -88,10 +69,10 @@ pub const fn srgb_quant{}(&self) -> [f32; 3] {{
     match self {{",
             q, q
         );
-        for (n, (_space, space_str)) in spaces.iter().enumerate() {
+        for (n, space) in Space::ALL.iter().enumerate() {
             formatted += &format!("
-        &{} => {:?},",
-                space_str, results[n][qn]
+        &Space::{:?} => {:?},",
+                space, results[n][qn]
             )
             .replace("inf", "f32::INFINITY");
         }
