@@ -1,11 +1,11 @@
-# ColCon 0.7.1
+# ColCon 0.8.0
 Simple colorspace conversions in Rust.
 
 ## Features
   * Pure Rust, no dependencies.
   * Most functions compile to a C lib
-  * sRGB, HSV, CIE XYZ, CIE L*a*b*, Oklab, JzAzBz
-    + Cylindrical versions of all LAB-adjacent spaces
+  * sRGB, HSV, CIE XYZ, CIE LAB, Oklab, JzAzBz
+    + LCH/Cylindrical versions of all LAB spaces
   * Accurate across a wide variety of tests, referencing [colour-science](https://github.com/colour-science/colour)
 
 ## Future
