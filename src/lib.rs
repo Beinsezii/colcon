@@ -291,12 +291,12 @@ pub enum Space {
     /// 1931 CIE XYZ @ D65.
     XYZ,
 
-    /// CIE L*a*b*. Lightness, red/green chromacity, yellow/blue chromacity.
+    /// CIE LAB. Lightness, red/green chromacity, yellow/blue chromacity.
     /// 1976 UCS with many known flaws. Most other LAB spaces derive from this
     CIELAB,
 
-    /// CIE L*C*Hab. Lightness, Chroma, Hue
-    /// Cylindrical version of CIE L*a*b*.
+    /// CIE LCH(ab). Lightness, Chroma, Hue
+    /// Cylindrical version of CIE LAB.
     CIELCH,
 
     /// Oklab <https://bottosson.github.io/posts/oklab/>
@@ -323,8 +323,8 @@ impl TryFrom<&str> for Space {
             "lrgb" | "rgb" => Ok(Space::LRGB),
             "xyz" | "cie xyz" | "ciexyz" => Ok(Space::XYZ),
             // extra values so you can move to/from str
-            "lab" | "cie lab" | "cielab" | "cie l*a*b*" => Ok(Space::CIELAB),
-            "lch" | "cie lch" | "cielch" | "cie l*c*hab" => Ok(Space::CIELCH),
+            "lab" | "cie lab" | "cielab" => Ok(Space::CIELAB),
+            "lch" | "cie lch" | "cielch" => Ok(Space::CIELCH),
             "oklab" => Ok(Space::OKLAB),
             "oklch" => Ok(Space::OKLCH),
             "jzazbz" => Ok(Space::JZAZBZ),
@@ -345,8 +345,8 @@ impl core::fmt::Display for Space {
                     Self::HSV => "HSV",
                     Self::LRGB => "RGB",
                     Self::XYZ => "CIE XYZ",
-                    Self::CIELAB => "CIE L*a*b*",
-                    Self::CIELCH => "CIE L*C*Hab",
+                    Self::CIELAB => "CIE LAB",
+                    Self::CIELCH => "CIE LCH",
                     Self::OKLAB => "Oklab",
                     Self::OKLCH => "Oklch",
                     Self::JZAZBZ => "JzAzBz",
