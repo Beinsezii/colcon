@@ -4,7 +4,7 @@ Simple colorspace conversions in Rust.
 ## Features
   * Pure Rust, no dependencies.
   * Most functions compile to a C lib
-  * sRGB, HSV, CIE XYZ, CIE LAB, Oklab, JzAzBz
+  * sRGB, RGB, CIE XYZ, CIE LAB, Oklab, JzAzBz, HSV
     + LCH/Cylindrical versions of all LAB spaces
   * Accurate across a wide variety of tests, referencing [colour-science](https://github.com/colour-science/colour)
 
