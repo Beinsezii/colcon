@@ -957,7 +957,7 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
 }
 
 // Disabled for now as all the papers are paywalled
-/// Convert CIE XYZ to CAM16-UCS
+// /// Convert CIE XYZ to CAM16-UCS
 // #[no_mangle]
 // pub extern "C" fn xyz_to_cam16ucs(pixel: &mut [f32; 3]) {
 
@@ -1138,7 +1138,7 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 }
 
 // Disabled for now as all the papers are paywalled
-/// Convert CAM16-UCS to CIE XYZ
+// /// Convert CAM16-UCS to CIE XYZ
 // #[no_mangle]
 // pub extern "C" fn cam16ucs_to_xyz(pixel: &mut [f32; 3]) {
 
