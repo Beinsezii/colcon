@@ -240,7 +240,7 @@ pub extern "C" fn pqz_oetf(f: f32) -> f32 {
 /// Extended K-values from High et al 2021/2022
 const K_HIGH2022: [f32; 4] = [0.1644, 0.0603, 0.1307, 0.0060];
 
-/// Mean value of the HK delta, High et al 2023 implementation.
+/// Mean value of the HK delta for CIE LCH(ab), High et al 2023 implementation.
 /// Measured with 36000 steps in the hk_exmample file @ 100 C(ab)
 /// Cannot make a const fn: https://github.com/rust-lang/rust/issues/57241
 pub const HIGH2023_MEAN: f32 = 20.956442;
@@ -264,7 +264,7 @@ pub extern "C" fn hk_high2023(lch: &[f32; 3]) -> f32 {
     (hk_2023_fby(lch[2]) + hk_2023_fr(lch[2])) * lch[1]
 }
 
-/// Compensates LCH's L value for the Helmholtz-Kohlrausch effect.
+/// Compensates CIE LCH's L value for the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
 #[no_mangle]
 pub extern "C" fn hk_high2023_comp(lch: &mut [f32; 3]) {
@@ -293,11 +293,11 @@ pub enum Space {
 
     /// CIE L*a*b*. Lightness, red/green chromacity, yellow/blue chromacity.
     /// 1976 UCS with many known flaws. Most other LAB spaces derive from this
-    LAB,
+    CIELAB,
 
     /// CIE L*C*Hab. Lightness, Chroma, Hue
     /// Cylindrical version of CIE L*a*b*.
-    LCH,
+    CIELCH,
 
     /// Oklab <https://bottosson.github.io/posts/oklab/>
     /// 2020 UCS, used in CSS Color Module Level 4
@@ -323,8 +323,8 @@ impl TryFrom<&str> for Space {
             "lrgb" | "rgb" => Ok(Space::LRGB),
             "xyz" | "cie xyz" | "ciexyz" => Ok(Space::XYZ),
             // extra values so you can move to/from str
-            "lab" | "cie lab" | "cielab" | "cie l*a*b*" => Ok(Space::LAB),
-            "lch" | "cie lch" | "cielch" | "cie l*c*hab" => Ok(Space::LCH),
+            "lab" | "cie lab" | "cielab" | "cie l*a*b*" => Ok(Space::CIELAB),
+            "lch" | "cie lch" | "cielch" | "cie l*c*hab" => Ok(Space::CIELCH),
             "oklab" => Ok(Space::OKLAB),
             "oklch" => Ok(Space::OKLCH),
             "jzazbz" => Ok(Space::JZAZBZ),
@@ -345,8 +345,8 @@ impl core::fmt::Display for Space {
                     Self::HSV => "HSV",
                     Self::LRGB => "RGB",
                     Self::XYZ => "CIE XYZ",
-                    Self::LAB => "CIE L*a*b*",
-                    Self::LCH => "CIE L*C*Hab",
+                    Self::CIELAB => "CIE L*a*b*",
+                    Self::CIELCH => "CIE L*C*Hab",
                     Self::OKLAB => "Oklab",
                     Self::OKLCH => "Oklch",
                     Self::JZAZBZ => "JzAzBz",
@@ -368,7 +368,7 @@ impl PartialOrd for Space {
 
             // Endcaps
             Space::HSV => Ordering::Greater,
-            Space::LCH => Ordering::Greater,
+            Space::CIELCH => Ordering::Greater,
             Space::OKLCH => Ordering::Greater,
             Space::JZCZHZ => Ordering::Greater,
 
@@ -383,8 +383,8 @@ impl PartialOrd for Space {
             },
 
             // LAB Branches
-            Space::LAB => match other {
-                Space::LCH => Ordering::Less,
+            Space::CIELAB => match other {
+                Space::CIELCH => Ordering::Less,
                 _ => Ordering::Greater,
             },
             Space::OKLAB => match other {
@@ -407,8 +407,8 @@ impl Space {
             Space::HSV => ['h', 's', 'v'],
             Space::LRGB => ['r', 'g', 'b'],
             Space::XYZ => ['x', 'y', 'z'],
-            Space::LAB => ['l', 'a', 'b'],
-            Space::LCH => ['l', 'c', 'h'],
+            Space::CIELAB => ['l', 'a', 'b'],
+            Space::CIELCH => ['l', 'c', 'h'],
             Space::OKLAB => ['l', 'a', 'b'],
             Space::OKLCH => ['l', 'c', 'h'],
             Space::JZAZBZ => ['j', 'a', 'b'],
@@ -422,8 +422,8 @@ impl Space {
         Space::HSV,
         Space::LRGB,
         Space::XYZ,
-        Space::LAB,
-        Space::LCH,
+        Space::CIELAB,
+        Space::CIELCH,
         Space::OKLAB,
         Space::OKLCH,
         Space::JZAZBZ,
@@ -431,10 +431,10 @@ impl Space {
     ];
 
     /// Uniform color spaces
-    pub const UCS: &'static [Space] = &[Space::LAB, Space::OKLAB, Space::JZAZBZ];
+    pub const UCS: &'static [Space] = &[Space::CIELAB, Space::OKLAB, Space::JZAZBZ];
 
     /// Uniform color spaces in cylindrical/polar format
-    pub const UCS_POLAR: &'static [Space] = &[Space::LCH, Space::OKLCH, Space::JZCZHZ];
+    pub const UCS_POLAR: &'static [Space] = &[Space::CIELCH, Space::OKLCH, Space::JZCZHZ];
 
     /// RGB/Tristimulus color spaces
     pub const TRI: &'static [Space] = &[Space::SRGB, Space::LRGB, Space::XYZ];
@@ -451,8 +451,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 0.0, 0.0],
             &Space::LRGB => [0.0, 0.0, 0.0],
             &Space::XYZ => [0.0, 0.0, 0.0],
-            &Space::LAB => [0.0, -86.18286, -107.85035],
-            &Space::LCH => [0.0, 0.0, f32::INFINITY],
+            &Space::CIELAB => [0.0, -86.18286, -107.85035],
+            &Space::CIELCH => [0.0, 0.0, f32::INFINITY],
             &Space::OKLAB => [0.0, -0.23392147, -0.31162056],
             &Space::OKLCH => [0.0, 0.0, f32::INFINITY],
             &Space::JZAZBZ => [0.0, -0.016248252, -0.02494995],
@@ -469,8 +469,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 0.100000024, 0.21],
             &Space::LRGB => [0.0007739938, 0.0007739938, 0.0007739938],
             &Space::XYZ => [0.017851105, 0.013837883, 0.008856518],
-            &Space::LAB => [11.849316, -76.75052, -92.486176],
-            &Space::LCH => [11.849316, 7.061057, f32::INFINITY],
+            &Space::CIELAB => [11.849316, -76.75052, -92.486176],
+            &Space::CIELCH => [11.849316, 7.061057, f32::INFINITY],
             &Space::OKLAB => [0.24800068, -0.20801869, -0.26735336],
             &Space::OKLCH => [0.24800068, 0.020308746, f32::INFINITY],
             &Space::JZAZBZ => [0.00098745, -0.014176477, -0.021382865],
@@ -487,8 +487,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 0.22500001, 0.37],
             &Space::LRGB => [0.0039359396, 0.0039359396, 0.0039359396],
             &Space::XYZ => [0.051534407, 0.03933429, 0.024504842],
-            &Space::LAB => [23.45013, -63.685505, -73.55361],
-            &Space::LCH => [23.45013, 16.198933, f32::INFINITY],
+            &Space::CIELAB => [23.45013, -63.685505, -73.55361],
+            &Space::CIELCH => [23.45013, 16.198933, f32::INFINITY],
             &Space::OKLAB => [0.35184953, -0.17341, -0.21155143],
             &Space::OKLCH => [0.35184953, 0.045713905, f32::INFINITY],
             &Space::JZAZBZ => [0.0022844237, -0.011591051, -0.01684369],
@@ -505,8 +505,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 0.31868133, 0.46],
             &Space::LRGB => [0.010022826, 0.010022826, 0.010022826],
             &Space::XYZ => [0.08368037, 0.06354216, 0.042235486],
-            &Space::LAB => [30.28909, -53.02161, -59.601402],
-            &Space::LCH => [30.28909, 23.07717, f32::INFINITY],
+            &Space::CIELAB => [30.28909, -53.02161, -59.601402],
+            &Space::CIELCH => [30.28909, 23.07717, f32::INFINITY],
             &Space::OKLAB => [0.41310564, -0.14668256, -0.17003474],
             &Space::OKLCH => [0.41310564, 0.064760715, f32::INFINITY],
             &Space::JZAZBZ => [0.003282838, -0.009647734, -0.013499062],
@@ -523,8 +523,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 0.95604396, 0.97],
             &Space::LRGB => [0.78741235, 0.78741235, 0.78741235],
             &Space::XYZ => [0.5299013, 0.66003364, 0.7995572],
-            &Space::LAB => [84.99813, 66.65242, 63.00903],
-            &Space::LCH => [84.99813, 94.23378, f32::INFINITY],
+            &Space::CIELAB => [84.99813, 66.65242, 63.00903],
+            &Space::CIELCH => [84.99813, 94.23378, f32::INFINITY],
             &Space::OKLAB => [0.8573815, 0.17646486, 0.1382165],
             &Space::OKLCH => [0.8573815, 0.24145529, f32::INFINITY],
             &Space::JZAZBZ => [0.012802434, 0.010417011, 0.012386818],
@@ -541,8 +541,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 0.9814815, 0.99],
             &Space::LRGB => [0.8900055, 0.8900055, 0.8900055],
             &Space::XYZ => [0.60459995, 0.7347975, 0.8984568],
-            &Space::LAB => [88.676025, 74.66978, 72.00491],
-            &Space::LCH => [88.676025, 103.532455, f32::INFINITY],
+            &Space::CIELAB => [88.676025, 74.66978, 72.00491],
+            &Space::CIELCH => [88.676025, 103.532455, f32::INFINITY],
             &Space::OKLAB => [0.8893366, 0.20846832, 0.15682206],
             &Space::OKLCH => [0.8893366, 0.26152557, f32::INFINITY],
             &Space::JZAZBZ => [0.013801003, 0.012809383, 0.0145695675],
@@ -559,8 +559,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 1.0, 1.0],
             &Space::LRGB => [0.9774019, 0.9774019, 0.9774019],
             &Space::XYZ => [0.73368907, 0.84591866, 0.99041635],
-            &Space::LAB => [93.70696, 85.19584, 82.5843],
-            &Space::LCH => [93.70696, 116.85265, f32::INFINITY],
+            &Space::CIELAB => [93.70696, 85.19584, 82.5843],
+            &Space::CIELCH => [93.70696, 116.85265, f32::INFINITY],
             &Space::OKLAB => [0.93844295, 0.246955, 0.17727482],
             &Space::OKLCH => [0.93844295, 0.28863373, f32::INFINITY],
             &Space::JZAZBZ => [0.015377459, 0.01548976, 0.017363891],
@@ -577,8 +577,8 @@ impl Space {
             &Space::HSV => [f32::INFINITY, 1.0, 1.0],
             &Space::LRGB => [1.0, 1.0, 1.0],
             &Space::XYZ => [0.9505, 1.0, 1.089],
-            &Space::LAB => [100.0, 98.25632, 94.489494],
-            &Space::LCH => [100.0, 133.80594, f32::INFINITY],
+            &Space::CIELAB => [100.0, 98.25632, 94.489494],
+            &Space::CIELCH => [100.0, 133.80594, f32::INFINITY],
             &Space::OKLAB => [1.0000017, 0.2762708, 0.19848984],
             &Space::OKLCH => [1.0000017, 0.32260108, f32::INFINITY],
             &Space::JZAZBZ => [0.01758024, 0.017218411, 0.020799855],
@@ -619,13 +619,13 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                 pixels.iter_mut().for_each(|pixel| xyz_to_lrgb(pixel));
                 convert_space_chunked(Space::LRGB, to, pixels)
             }
-            Space::LAB => {
+            Space::CIELAB => {
                 pixels.iter_mut().for_each(|pixel| lab_to_xyz(pixel));
                 convert_space_chunked(Space::XYZ, to, pixels)
             }
-            Space::LCH => {
+            Space::CIELCH => {
                 pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
-                convert_space_chunked(Space::LAB, to, pixels)
+                convert_space_chunked(Space::CIELAB, to, pixels)
             }
             Space::OKLAB => {
                 pixels.iter_mut().for_each(|pixel| oklab_to_xyz(pixel));
@@ -648,7 +648,7 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
         match from {
             // Endcaps
             Space::HSV => unreachable!(),
-            Space::LCH => unreachable!(),
+            Space::CIELCH => unreachable!(),
             Space::OKLCH => unreachable!(),
             Space::JZCZHZ => unreachable!(),
 
@@ -664,9 +664,9 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                 convert_space_chunked(Space::XYZ, to, pixels)
             }
             Space::XYZ => match to {
-                Space::LAB | Space::LCH => {
+                Space::CIELAB | Space::CIELCH => {
                     pixels.iter_mut().for_each(|pixel| xyz_to_lab(pixel));
-                    convert_space_chunked(Space::LAB, to, pixels)
+                    convert_space_chunked(Space::CIELAB, to, pixels)
                 }
                 Space::OKLAB | Space::OKLCH => {
                     pixels.iter_mut().for_each(|pixel| xyz_to_oklab(pixel));
@@ -678,7 +678,7 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
                 }
                 _ => unreachable!("XYZ tried to promote to {}", to),
             },
-            Space::LAB | Space::OKLAB | Space::JZAZBZ => {
+            Space::CIELAB | Space::OKLAB | Space::JZAZBZ => {
                 pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel))
             }
         }
@@ -982,7 +982,7 @@ pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
     *pixel = matmul3t(lms, ICTCP_M2);
 }
 
-/// Convert from CIE LAB to CIE LCH.
+/// Converts an LAB based space to a cylindrical representation.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
 pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
@@ -1155,7 +1155,7 @@ pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
     *pixel = matmul3t(lms, ICTCP_M1_INV);
 }
 
-/// Convert from CIE LCH to CIE LAB.
+/// Retrieves an LAB based space from its cylindrical representation.
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
 pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
@@ -1509,10 +1509,10 @@ mod tests {
     fn tree_jump() {
         // forwards
         println!("HSV -> LCH");
-        conv_cmp(Space::HSV, HSV, Space::LCH, LCH);
+        conv_cmp(Space::HSV, HSV, Space::CIELCH, LCH);
 
         println!("LCH -> OKLCH");
-        conv_cmp(Space::LCH, LCH, Space::OKLCH, OKLCH);
+        conv_cmp(Space::CIELCH, LCH, Space::OKLCH, OKLCH);
 
         println!("OKLCH -> JZCZHZ");
         conv_cmp_full(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ, 2e-1, &[0, 7]);
@@ -1528,12 +1528,12 @@ mod tests {
         conv_cmp_full(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH, 1e-1, &[0, 7]);
 
         println!("OKLCH -> LCH");
-        conv_cmp(Space::OKLCH, OKLCH, Space::LCH, LCH);
+        conv_cmp(Space::OKLCH, OKLCH, Space::CIELCH, LCH);
 
         // add 1 to skip because the hue wraps from 0.0000 to 0.9999
         // fuck you precision
         println!("LCH -> HSV");
-        conv_cmp_full(Space::LCH, LCH, Space::HSV, HSV, 1e-1, &[0, 1, 7]);
+        conv_cmp_full(Space::CIELCH, LCH, Space::HSV, HSV, 1e-1, &[0, 1, 7]);
     }
 
     #[test]
@@ -1542,7 +1542,7 @@ mod tests {
             acc.extend_from_slice(it);
             acc
         });
-        convert_space_sliced(Space::SRGB, Space::LCH, &mut pixel);
+        convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
         pix_cmp(
             &pixel
                 .chunks_exact(3)
@@ -1598,7 +1598,7 @@ mod tests {
                     let (a, b, c) = (a as f32 / 10.0, b as f32 / 10.0, c as f32 / 10.0);
                     // lch
                     let mut pixel = [a as f32, b as f32, c as f32];
-                    convert_space(Space::SRGB, Space::LCH, &mut pixel);
+                    convert_space(Space::SRGB, Space::CIELCH, &mut pixel);
                     assert!(pixel[2] <= 360.0, "lch H was {}", pixel[2]);
                     assert!(pixel[2] >= 0.0, "lch H was {}", pixel[2]);
                     // hsv
@@ -1695,7 +1695,7 @@ mod tests {
     fn str2col_lch() {
         assert_eq!(
             str2col("lch(50, 30, 160)"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 
@@ -1703,7 +1703,7 @@ mod tests {
     fn str2col_lch_space() {
         assert_eq!(
             str2col("lch 50, 30, 160"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 
@@ -1711,7 +1711,7 @@ mod tests {
     fn str2col_lch_colon() {
         assert_eq!(
             str2col("lch:50:30:160"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 
@@ -1719,7 +1719,7 @@ mod tests {
     fn str2col_lch_semicolon() {
         assert_eq!(
             str2col("lch;50;30;160"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 
@@ -1727,7 +1727,7 @@ mod tests {
     fn str2col_lch_mixed() {
         assert_eq!(
             str2col("lch; (50,30,160)"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 
@@ -1735,7 +1735,7 @@ mod tests {
     fn str2col_lch_mixed2() {
         assert_eq!(
             str2col("lch(50; 30; 160)"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 
@@ -1743,7 +1743,7 @@ mod tests {
     fn str2col_lch_mixed3() {
         assert_eq!(
             str2col("lch   (50   30  160)"),
-            Some((Space::LCH, [50.0, 30.0, 160.0]))
+            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
         )
     }
 

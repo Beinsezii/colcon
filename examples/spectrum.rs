@@ -20,7 +20,7 @@ fn write_ppm(pixels: &[[f32; 3]], name: &str) {
 fn main() {
     for (space, filename) in [
         (Space::HSV, "hsv"),
-        (Space::LCH, "cie_lab"),
+        (Space::CIELCH, "cie_lab"),
         (Space::OKLCH, "oklab"),
         (Space::JZCZHZ, "jzazbz"),
     ] {

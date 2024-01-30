@@ -81,27 +81,27 @@ pub fn conversions(c: &mut Criterion) {
     } ));
 
     c.bench_function("full_to", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::SRGB, Space::LCH, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::SRGB, Space::CIELCH, pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("full_from", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LCH, Space::SRGB, pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::CIELCH, Space::SRGB, pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("full_to_chunk", |b| b.iter(|| {
-        black_box(colcon::convert_space_chunked(Space::LCH, Space::SRGB, pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
+        black_box(colcon::convert_space_chunked(Space::CIELCH, Space::SRGB, pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
     } ));
 
     c.bench_function("full_from_chunk", |b| b.iter(|| {
-        black_box(colcon::convert_space_chunked(Space::LCH, Space::SRGB, &mut pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
+        black_box(colcon::convert_space_chunked(Space::CIELCH, Space::SRGB, &mut pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
     } ));
 
     c.bench_function("full_to_slice", |b| b.iter(|| {
-        black_box(colcon::convert_space_sliced(Space::LCH, Space::SRGB, &mut pixels.clone()));
+        black_box(colcon::convert_space_sliced(Space::CIELCH, Space::SRGB, &mut pixels.clone()));
     } ));
 
     c.bench_function("full_from_slice", |b| b.iter(|| {
-        black_box(colcon::convert_space_sliced(Space::LCH, Space::SRGB, &mut pixels.clone()));
+        black_box(colcon::convert_space_sliced(Space::CIELCH, Space::SRGB, &mut pixels.clone()));
     } ));
 
     c.bench_function("single", |b| b.iter(|| {

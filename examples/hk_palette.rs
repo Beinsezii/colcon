@@ -36,7 +36,7 @@ fn main() {
             .map(|row| {
                 row.map(|pixel| {
                     let mut pixel = pixel;
-                    convert_space(colcon::Space::LCH, colcon::Space::SRGB, &mut pixel);
+                    convert_space(colcon::Space::CIELCH, colcon::Space::SRGB, &mut pixel);
                     srgb_to_irgb(pixel)
                 })
             })
