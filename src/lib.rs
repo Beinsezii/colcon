@@ -809,12 +809,12 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 /// # Examples
 ///
 /// ```
-/// use colcon::str2col;
+/// use colcon::{str2col, Space};
 ///
-/// assert_eq!(str2col("0.2, 0.5, 0.6"), (Space::SRGB, [0.2, 0.5, 0.6]));
-/// assert_eq!(str2col("lch:50;20;120"), (Space::LCH, [50.0, 20.0, 120.0]));
-/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), (Space::OKLAB, [0.2, 0.6, -0.5]));
-/// assert_eq!(str2col("srgb 100% 50% 25%"), (Space::SRGB, [1.0, 0.5, 0.25]));
+/// assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])));
+/// assert_eq!(str2col("lch:50;20;120"), Some((Space::CIELCH, [50.0, 20.0, 120.0])));
+/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), Some((Space::OKLAB, [0.2, 0.6, -0.5])));
+/// assert_eq!(str2col("srgb 100% 50% 25%"), Some((Space::SRGB, [1.0, 0.5, 0.25])));
 /// ```
 pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     s = rm_paren(s.trim());
