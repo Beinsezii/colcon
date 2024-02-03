@@ -780,6 +780,7 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     s = rm_paren(s.trim());
     let mut space = Space::SRGB;
+    let mut result = [f32::NAN; 3];
 
     // Return hex if valid
     if let Ok(irgb) = hex_to_irgb(s) {
@@ -801,22 +802,39 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     }
 
     // Split by separators + whitespace and parse
-    let splits = s
+    for (n, split) in s
         .split(|c: char| c.is_whitespace() || seps.contains(&c))
-        .filter_map(|s| match s.is_empty() {
-            true => None,
-            false => Some(s.parse::<f32>().ok()),
-        })
-        .collect::<Vec<Option<f32>>>();
-
-    // Return floats if all 3 valid
-    if splits.len() == 3 {
-        if let (Some(a), Some(b), Some(c)) = (splits[0], splits[1], splits[2]) {
-            return Some((space, [a, b, c]));
+        .filter(|s| !s.is_empty())
+        .enumerate()
+    {
+        if n > 2 {
+            return None;
+        } else if let Ok(value) = split.parse::<f32>() {
+            result[n] = value;
+        } else if split.ends_with('%') {
+            if let Ok(value) = split[0..(split.len() - 1)].parse::<f32>() {
+                let (q0, q100) = (space.srgb_quant0()[n], space.srgb_quant100()[n]);
+                if q0.is_finite() && q100.is_finite() {
+                    result[n] = value / 100.0 * (q100 - q0) + q0;
+                } else if Space::UCS_POLAR.contains(&space) {
+                    result[n] = value / 100.0 * 360.0
+                } else if space == Space::HSV {
+                    result[n] = value / 100.0
+                } else {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        } else {
+            return None;
         }
     }
-
-    None
+    if result.iter().all(|v| v.is_finite()) {
+        Some((space, result))
+    } else {
+        None
+    }
 }
 
 /// Convert a string into a pixel of the requested Space
@@ -1750,6 +1768,81 @@ mod tests {
     #[test]
     fn str2col_hex() {
         assert_eq!(str2col(HEX), Some((Space::SRGB, irgb_to_srgb(IRGB))))
+    }
+
+    #[test]
+    fn str2col_perc100() {
+        assert_eq!(
+            str2col("oklch 100% 100% 100%"),
+            Some((
+                Space::OKLCH,
+                [
+                    Space::OKLCH.srgb_quant100()[0],
+                    Space::OKLCH.srgb_quant100()[1],
+                    360.0,
+                ]
+            ))
+        )
+    }
+
+    #[test]
+    fn str2col_perc50() {
+        assert_eq!(
+            str2col("oklch 50.0% 50% 50.0000%"),
+            Some((
+                Space::OKLCH,
+                [
+                    (Space::OKLCH.srgb_quant0()[0] + Space::OKLCH.srgb_quant100()[0]) / 2.0,
+                    (Space::OKLCH.srgb_quant0()[1] + Space::OKLCH.srgb_quant100()[1]) / 2.0,
+                    180.0,
+                ]
+            ))
+        )
+    }
+
+    #[test]
+    fn str2col_perc0() {
+        assert_eq!(
+            str2col("oklch 0% 0% 0%"),
+            Some((
+                Space::OKLCH,
+                [
+                    Space::OKLCH.srgb_quant0()[0],
+                    Space::OKLCH.srgb_quant0()[1],
+                    0.0,
+                ]
+            ))
+        )
+    }
+
+    #[test]
+    fn str2col_perc_mix() {
+        assert_eq!(
+            str2col("oklab 0.5 100.000% 0%"),
+            Some((
+                Space::OKLAB,
+                [
+                    0.5,
+                    Space::OKLAB.srgb_quant100()[1],
+                    Space::OKLAB.srgb_quant0()[2],
+                ]
+            ))
+        )
+    }
+
+    #[test]
+    fn str2col_perc_inval() {
+        assert_eq!(str2col("oklab 0.5 100 % 0%"), None)
+    }
+
+    #[test]
+    fn str2col_perc_inval2() {
+        assert_eq!(str2col("oklab 0.5% %100% 0%"), None)
+    }
+
+    #[test]
+    fn str2col_perc_inval3() {
+        assert_eq!(str2col("oklab 0.5 100%% 0%"), None)
     }
 
     #[test]
