@@ -62,6 +62,7 @@ fn main() {
     for (qn, q) in QUANTILES.iter().enumerate() {
         formatted += &format!("
 /// Retrieves the {} quantile for mapping a given Space back to SRGB.
+///
 /// This is useful for things like creating adjustable values in Space
 /// that represent most of the SRGB range without clipping.
 /// Wrapping Hue values are set to f32::INFINITY

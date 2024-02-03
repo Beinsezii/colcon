@@ -6,9 +6,6 @@
 //! Formulae are generally taken from their research papers or Wikipedia and validated against
 //! colour-science <https://github.com/colour-science/colour>
 //!
-//! Helmholtz-Kohlrausch compensation formulae sourced from
-//! <https://onlinelibrary.wiley.com/doi/10.1002/col.22839>
-//!
 //! This crate references CIE Standard Illuminant D65 for functions to/from CIE XYZ
 
 use core::cmp::Ordering;
@@ -164,6 +161,7 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 // ### TRANSFER FUNCTIONS ### {{{
 
 /// sRGB Electro-Optical Transfer Function
+///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
 #[no_mangle]
 pub extern "C" fn srgb_eotf(n: f32) -> f32 {
@@ -175,6 +173,7 @@ pub extern "C" fn srgb_eotf(n: f32) -> f32 {
 }
 
 /// Inverse sRGB Electro-Optical Transfer Function
+///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
 #[no_mangle]
 pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
@@ -185,7 +184,7 @@ pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
     }
 }
 
-/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
+// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 fn pq_eotf_common(e: f32, m2: f32) -> f32 {
     let y = spowf(
         (spowf(e, 1.0 / m2) - PQEOTF_C1).max(0.0) / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / m2)),
@@ -194,7 +193,7 @@ fn pq_eotf_common(e: f32, m2: f32) -> f32 {
     10000.0 * y
 }
 
-/// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
+// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
 fn pq_oetf_common(f: f32, m2: f32) -> f32 {
     let y = f / 10000.0;
     spowf(
@@ -204,6 +203,7 @@ fn pq_oetf_common(f: f32, m2: f32) -> f32 {
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function primarily used for ICtCP
+///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 #[no_mangle]
 pub extern "C" fn pq_eotf(e: f32) -> f32 {
@@ -211,6 +211,7 @@ pub extern "C" fn pq_eotf(e: f32) -> f32 {
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function primarily used for ICtCP
+///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
 #[no_mangle]
 pub extern "C" fn pq_oetf(f: f32) -> f32 {
@@ -218,7 +219,9 @@ pub extern "C" fn pq_oetf(f: f32) -> f32 {
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function modified for JzAzBz
+///
 /// Replaced PQEOTF_M2 with JZAZBZ_P
+///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
 #[no_mangle]
 pub extern "C" fn pqz_eotf(e: f32) -> f32 {
@@ -226,7 +229,9 @@ pub extern "C" fn pqz_eotf(e: f32) -> f32 {
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function modified for JzAzBz
+///
 /// Replaced PQEOTF_M2 with JZAZBZ_P
+///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
 #[no_mangle]
 pub extern "C" fn pqz_oetf(f: f32) -> f32 {
@@ -241,8 +246,9 @@ pub extern "C" fn pqz_oetf(f: f32) -> f32 {
 const K_HIGH2022: [f32; 4] = [0.1644, 0.0603, 0.1307, 0.0060];
 
 /// Mean value of the HK delta for CIE LCH(ab), High et al 2023 implementation.
-/// Measured with 36000 steps in the hk_exmample file @ 100 C(ab)
-/// Cannot make a const fn: https://github.com/rust-lang/rust/issues/57241
+///
+/// Measured with 36000 steps in the hk_exmample file @ 100 C(ab).
+/// Cannot make a const fn: <https://github.com/rust-lang/rust/issues/57241>
 pub const HIGH2023_MEAN: f32 = 20.956442;
 
 fn hk_2023_fby(h: f32) -> f32 {
@@ -282,6 +288,7 @@ pub enum Space {
     SRGB,
 
     /// Hue Saturation Value.
+    ///
     /// A UCS typically preferred for modern applications
     HSV,
 
@@ -292,21 +299,29 @@ pub enum Space {
     XYZ,
 
     /// CIE LAB. Lightness, red/green chromacity, yellow/blue chromacity.
+    ///
     /// 1976 UCS with many known flaws. Most other LAB spaces derive from this
     CIELAB,
 
     /// CIE LCH(ab). Lightness, Chroma, Hue
+    ///
     /// Cylindrical version of CIE LAB.
     CIELCH,
 
-    /// Oklab <https://bottosson.github.io/posts/oklab/>
+    /// Oklab
+    ///
+    /// <https://bottosson.github.io/posts/oklab/>
+    ///
     /// 2020 UCS, used in CSS Color Module Level 4
     OKLAB,
 
     /// Cylindrical version of OKLAB.
     OKLCH,
 
-    /// JzAzBz <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
+    /// JzAzBz
+    ///
+    /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
+    ///
     /// 2017 UCS, intended for uniform hue and HDR colors
     JZAZBZ,
 
@@ -441,7 +456,9 @@ impl Space {
 
     // ### GENREATED QUANTILE FNS ### {{{
 
+
     /// Retrieves the 0 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -460,6 +477,7 @@ impl Space {
         }
     }
     /// Retrieves the 1 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -478,6 +496,7 @@ impl Space {
         }
     }
     /// Retrieves the 5 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -496,6 +515,7 @@ impl Space {
         }
     }
     /// Retrieves the 10 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -514,6 +534,7 @@ impl Space {
         }
     }
     /// Retrieves the 90 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -532,6 +553,7 @@ impl Space {
         }
     }
     /// Retrieves the 95 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -550,6 +572,7 @@ impl Space {
         }
     }
     /// Retrieves the 99 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -568,6 +591,7 @@ impl Space {
         }
     }
     /// Retrieves the 100 quantile for mapping a given Space back to SRGB.
+    ///
     /// This is useful for things like creating adjustable values in Space
     /// that represent most of the SRGB range without clipping.
     /// Wrapping Hue values are set to f32::INFINITY
@@ -602,7 +626,9 @@ pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
 }
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
-/// in the least possible moves. Caches conversion graph for faster iteration.
+/// in the least possible moves.
+///
+/// Caches conversion graph for faster iteration.
 pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
     if from > to {
         match from {
@@ -686,8 +712,9 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
 }
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
-/// in the least possible moves. Caches conversion graph for faster iteration.
-/// Ignores remainder values in slice.
+/// in the least possible moves.
+///
+/// Caches conversion graph for faster iteration and ignores remainder values in slice.
 pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
     // How long has this been in unstable...
     // convert_space_chunked(from, to, pixels.as_chunks_mut::<3>().0);
@@ -697,6 +724,7 @@ pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
 }
 
 /// Same as `convert_space_sliced` but with FFI types.
+///
 /// Returns 0 on success, 1 on invalid `from`, 2 on invalid `to`, 3 on invalid `pixels`
 #[no_mangle]
 pub extern "C" fn convert_space_ffi(
@@ -749,7 +777,6 @@ pub extern "C" fn convert_space_ffi(
 }
 
 /// Same as `convert_space`, ignores the 4th value in `pixel`.
-/// Just a convenience function.
 pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
     unsafe {
         convert_space(
@@ -773,13 +800,22 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 }
 
 /// Convert a string into a space/array combo.
-/// Can separate with parentheses, spaces, ';', ':', or ','
-/// Ex: "0.2, 0.5, 0.6", "lch: 50 20 120" "oklab(0.2 0.6 90)"
+/// Separated with spaces, ';', ':', or ','
 ///
-/// Can additionally be set as a percent of SDR range, ex
-/// "jzczhz 50% 60% 200"
+/// Can additionally be set as a % of SDR range.
 ///
 /// Does not support alpha channel.
+///
+/// # Examples
+///
+/// ```
+/// use colcon::str2col;
+///
+/// assert_eq!(str2col("0.2, 0.5, 0.6"), (Space::SRGB, [0.2, 0.5, 0.6]));
+/// assert_eq!(str2col("lch:50;20;120"), (Space::LCH, [50.0, 20.0, 120.0]));
+/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), (Space::OKLAB, [0.2, 0.6, -0.5]));
+/// assert_eq!(str2col("srgb 100% 50% 25%"), (Space::SRGB, [1.0, 0.5, 0.25]));
+/// ```
 pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     s = rm_paren(s.trim());
     let mut space = Space::SRGB;
@@ -840,7 +876,8 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     }
 }
 
-/// Convert a string into a pixel of the requested Space
+/// Convert a string into a pixel of the requested Space.
+///
 /// Shorthand for str2col() -> convert_space()
 pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
     str2col(s).map(|(from, mut col)| {
@@ -853,8 +890,6 @@ pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
 // ### FORWARD ### {{{
 
 /// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
-/// Simply clips values > 1.0 && < 0.0.
-/// Not RGB specific, but other formats typically aren't represented as integers.
 pub fn srgb_to_irgb(pixel: [f32; 3]) -> [u8; 3] {
     [
         ((pixel[0] * 255.0).max(0.0).min(255.0) as u8),
@@ -864,7 +899,6 @@ pub fn srgb_to_irgb(pixel: [f32; 3]) -> [u8; 3] {
 }
 
 /// Create a hexadecimal string from integer RGB.
-/// Not RGB specific, but other formats typically aren't represented as hexadecimal.
 pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
     let mut hex = String::from("#");
 
@@ -909,6 +943,7 @@ pub extern "C" fn srgb_to_hsv(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from sRGB to Linear RGB by applying the sRGB EOTF
+///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
 #[no_mangle]
 pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
@@ -916,6 +951,7 @@ pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
+///
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
 #[no_mangle]
 pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
@@ -923,6 +959,7 @@ pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from CIE XYZ to CIE LAB.
+///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
 #[no_mangle]
 pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
@@ -945,6 +982,7 @@ pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from CIE XYZ to OKLAB.
+///
 /// <https://bottosson.github.io/posts/oklab/>
 #[no_mangle]
 pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
@@ -954,6 +992,7 @@ pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
 }
 
 /// Convert CIE XYZ to JzAzBz
+///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
 #[no_mangle]
 pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
@@ -985,6 +1024,7 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
 // }
 
 /// Convert LRGB to ICtCp. Unvalidated, WIP
+///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
 pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
@@ -1004,6 +1044,7 @@ pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
 }
 
 /// Converts an LAB based space to a cylindrical representation.
+///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
 pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
@@ -1019,7 +1060,6 @@ pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
 // ### BACKWARD ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
-/// Not RGB specific, but other formats typically aren't represented as integers.
 pub fn irgb_to_srgb(pixel: [u8; 3]) -> [f32; 3] {
     [
         pixel[0] as f32 / 255.0,
@@ -1029,7 +1069,6 @@ pub fn irgb_to_srgb(pixel: [u8; 3]) -> [f32; 3] {
 }
 
 /// Create integer RGB set from hex string.
-/// Not RGB specific, but other formats typically aren't represented as hexadecimal.
 pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
     let hex = hex.trim().to_ascii_uppercase();
 
@@ -1094,6 +1133,7 @@ pub extern "C" fn hsv_to_srgb(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from Linear RGB to sRGB by applying the inverse sRGB EOTF
+///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
 #[no_mangle]
 pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
@@ -1101,6 +1141,7 @@ pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
+///
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 #[no_mangle]
 pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
@@ -1108,6 +1149,7 @@ pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from CIE LAB to CIE XYZ.
+///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
 #[no_mangle]
 pub extern "C" fn lab_to_xyz(pixel: &mut [f32; 3]) {
@@ -1129,6 +1171,7 @@ pub extern "C" fn lab_to_xyz(pixel: &mut [f32; 3]) {
 }
 
 /// Convert from OKLAB to CIE XYZ.
+///
 /// <https://bottosson.github.io/posts/oklab/>
 #[no_mangle]
 pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
@@ -1138,6 +1181,7 @@ pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
 }
 
 /// Convert JzAzBz to CIE XYZ
+///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
 #[no_mangle]
 pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
@@ -1166,6 +1210,7 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 // }
 
 /// Convert ICtCp to LRGB. Unvalidated, WIP
+///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
 pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
@@ -1177,6 +1222,7 @@ pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
 }
 
 /// Retrieves an LAB based space from its cylindrical representation.
+///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
 #[no_mangle]
 pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
