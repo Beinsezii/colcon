@@ -776,6 +776,9 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 /// Can separate with parentheses, spaces, ';', ':', or ','
 /// Ex: "0.2, 0.5, 0.6", "lch: 50 20 120" "oklab(0.2 0.6 90)"
 ///
+/// Can additionally be set as a percent of SDR range, ex
+/// "jzczhz 50% 60% 200"
+///
 /// Does not support alpha channel.
 pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     s = rm_paren(s.trim());
