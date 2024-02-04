@@ -717,10 +717,12 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
 pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
     // How long has this been in unstable...
     // let pixels: &mut [[f32; 3]] = pixels.as_chunks_mut::<3>().0;
-    unsafe {
-        let pixels: &mut [[f32; 3]] = pixels.align_to_mut::<[f32; 3]>().1;
-        convert_space_chunked(from, to, pixels);
-    }
+    let pixels: &mut [[f32; 3]] = unsafe {
+        let len = pixels.len() - (pixels.len() % 3);
+        let pixels: &mut [f32] = &mut pixels[..len];
+        std::slice::from_raw_parts_mut(pixels.as_mut_ptr().cast(), len / 3)
+    };
+    convert_space_chunked(from, to, pixels);
 }
 
 /// Same as `convert_space_sliced` but with FFI types.
@@ -1627,6 +1629,7 @@ mod tests {
             acc.extend_from_slice(it);
             acc
         });
+        pixel.push(1234.5678);
         convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
         pix_cmp(
             &pixel
@@ -1637,6 +1640,7 @@ mod tests {
             1e-1,
             &[],
         );
+        assert_eq!(*pixel.last().unwrap(), 1234.5678);
     }
 
     #[test]
