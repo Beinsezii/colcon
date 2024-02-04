@@ -456,7 +456,6 @@ impl Space {
 
     // ### GENREATED QUANTILE FNS ### {{{
 
-
     /// Retrieves the 0 quantile for mapping a given Space back to SRGB.
     ///
     /// This is useful for things like creating adjustable values in Space
@@ -717,10 +716,11 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
 /// Caches conversion graph for faster iteration and ignores remainder values in slice.
 pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
     // How long has this been in unstable...
-    // convert_space_chunked(from, to, pixels.as_chunks_mut::<3>().0);
-    pixels
-        .chunks_exact_mut(3)
-        .for_each(|pixel| convert_space(from, to, pixel.try_into().unwrap()));
+    // let pixels: &mut [[f32; 3]] = pixels.as_chunks_mut::<3>().0;
+    unsafe {
+        let pixels: &mut [[f32; 3]] = pixels.align_to_mut::<[f32; 3]>().1;
+        convert_space_chunked(from, to, pixels);
+    }
 }
 
 /// Same as `convert_space_sliced` but with FFI types.
@@ -1618,7 +1618,33 @@ mod tests {
             LCH,
             1e-1,
             &[],
-        )
+        );
+    }
+
+    #[test]
+    fn sliced_odd() {
+        let mut pixel: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+            acc.extend_from_slice(it);
+            acc
+        });
+        convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
+        pix_cmp(
+            &pixel
+                .chunks_exact(3)
+                .map(|c| c.try_into().unwrap())
+                .collect::<Vec<[f32; 3]>>(),
+            LCH,
+            1e-1,
+            &[],
+        );
+    }
+
+    #[test]
+    fn sliced_smol() {
+        let pixels = [1.0, 0.0];
+        let mut smol = pixels.clone();
+        convert_space_sliced(Space::SRGB, Space::CIELCH, &mut smol);
+        assert_eq!(pixels, smol);
     }
 
     #[test]
