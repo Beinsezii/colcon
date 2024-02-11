@@ -616,12 +616,106 @@ impl Space {
 
 // ### Convert Space ### {{{
 
+macro_rules! op_single {
+    ($func:ident, $data:expr) => {$func($data)};
+}
+
+macro_rules! op_chunk {
+    ($func:ident, $data:expr) => {$data.iter_mut().for_each(|pixel| $func(pixel))};
+}
+
+macro_rules! op_inter {
+    ($func:ident, $data:expr) => {$data.chunks_exact_mut(3).for_each(|pixel| $func(pixel.try_into().unwrap()))};
+}
+
+macro_rules! graph {
+    ($recurse:ident, $data:expr, $from:expr, $to:expr, $op:ident) => {
+        if $from > $to {
+            match $from {
+                Space::SRGB => unreachable!(),
+                Space::HSV => {
+                    $op!(hsv_to_srgb, $data);
+                    $recurse(Space::SRGB, $to, $data)
+                }
+                Space::LRGB => {
+                    $op!(lrgb_to_srgb, $data);
+                    $recurse(Space::SRGB, $to, $data)
+                }
+                Space::XYZ => {
+                    $op!(xyz_to_lrgb, $data);
+                    $recurse(Space::LRGB, $to, $data)
+                }
+                Space::CIELAB => {
+                    $op!(lab_to_xyz, $data);
+                    $recurse(Space::XYZ, $to, $data)
+                }
+                Space::CIELCH => {
+                    $op!(lch_to_lab, $data);
+                    $recurse(Space::CIELAB, $to, $data)
+                }
+                Space::OKLAB => {
+                    $op!(oklab_to_xyz, $data);
+                    $recurse(Space::XYZ, $to, $data)
+                }
+                Space::OKLCH => {
+                    $op!(lch_to_lab, $data);
+                    $recurse(Space::OKLAB, $to, $data)
+                }
+                Space::JZAZBZ => {
+                    $op!(jzazbz_to_xyz, $data);
+                    $recurse(Space::XYZ, $to, $data)
+                }
+                Space::JZCZHZ => {
+                    $op!(lch_to_lab, $data);
+                    $recurse(Space::JZAZBZ, $to, $data)
+                }
+            }
+        } else if $from < $to {
+            match $from {
+                // Endcaps
+                Space::HSV => unreachable!(),
+                Space::CIELCH => unreachable!(),
+                Space::OKLCH => unreachable!(),
+                Space::JZCZHZ => unreachable!(),
+
+                Space::SRGB => match $to {
+                    Space::HSV => $op!(srgb_to_hsv, $data),
+                    _ => {
+                        $op!(srgb_to_lrgb, $data);
+                        $recurse(Space::LRGB, $to, $data)
+                    }
+                },
+                Space::LRGB => {
+                    $op!(lrgb_to_xyz, $data);
+                    $recurse(Space::XYZ, $to, $data)
+                }
+                Space::XYZ => match $to {
+                    Space::CIELAB | Space::CIELCH => {
+                        $op!(xyz_to_lab, $data);
+                        $recurse(Space::CIELAB, $to, $data)
+                    }
+                    Space::OKLAB | Space::OKLCH => {
+                        $op!(xyz_to_oklab, $data);
+                        $recurse(Space::OKLAB, $to, $data)
+                    }
+                    Space::JZAZBZ | Space::JZCZHZ => {
+                        $op!(xyz_to_jzazbz, $data);
+                        $recurse(Space::JZAZBZ, $to, $data)
+                    }
+                    _ => unreachable!("XYZ tried $to promote $to {}", $to),
+                },
+                Space::CIELAB | Space::OKLAB | Space::JZAZBZ => {
+                    $op!(lab_to_lch, $data)
+                }
+            }
+        }
+    };
+}
+
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
 pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
-    let mut pixels = [*pixel];
-    convert_space_chunked(from, to, &mut pixels);
-    *pixel = pixels[0]
+    graph!(convert_space, pixel, from, to, op_single);
 }
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
@@ -629,85 +723,7 @@ pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
 ///
 /// Caches conversion graph for faster iteration.
 pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
-    if from > to {
-        match from {
-            Space::SRGB => unreachable!(),
-            Space::HSV => {
-                pixels.iter_mut().for_each(|pixel| hsv_to_srgb(pixel));
-                convert_space_chunked(Space::SRGB, to, pixels)
-            }
-            Space::LRGB => {
-                pixels.iter_mut().for_each(|pixel| lrgb_to_srgb(pixel));
-                convert_space_chunked(Space::SRGB, to, pixels)
-            }
-            Space::XYZ => {
-                pixels.iter_mut().for_each(|pixel| xyz_to_lrgb(pixel));
-                convert_space_chunked(Space::LRGB, to, pixels)
-            }
-            Space::CIELAB => {
-                pixels.iter_mut().for_each(|pixel| lab_to_xyz(pixel));
-                convert_space_chunked(Space::XYZ, to, pixels)
-            }
-            Space::CIELCH => {
-                pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
-                convert_space_chunked(Space::CIELAB, to, pixels)
-            }
-            Space::OKLAB => {
-                pixels.iter_mut().for_each(|pixel| oklab_to_xyz(pixel));
-                convert_space_chunked(Space::XYZ, to, pixels)
-            }
-            Space::OKLCH => {
-                pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
-                convert_space_chunked(Space::OKLAB, to, pixels)
-            }
-            Space::JZAZBZ => {
-                pixels.iter_mut().for_each(|pixel| jzazbz_to_xyz(pixel));
-                convert_space_chunked(Space::XYZ, to, pixels)
-            }
-            Space::JZCZHZ => {
-                pixels.iter_mut().for_each(|pixel| lch_to_lab(pixel));
-                convert_space_chunked(Space::JZAZBZ, to, pixels)
-            }
-        }
-    } else if from < to {
-        match from {
-            // Endcaps
-            Space::HSV => unreachable!(),
-            Space::CIELCH => unreachable!(),
-            Space::OKLCH => unreachable!(),
-            Space::JZCZHZ => unreachable!(),
-
-            Space::SRGB => match to {
-                Space::HSV => pixels.iter_mut().for_each(|pixel| srgb_to_hsv(pixel)),
-                _ => {
-                    pixels.iter_mut().for_each(|pixel| srgb_to_lrgb(pixel));
-                    convert_space_chunked(Space::LRGB, to, pixels)
-                }
-            },
-            Space::LRGB => {
-                pixels.iter_mut().for_each(|pixel| lrgb_to_xyz(pixel));
-                convert_space_chunked(Space::XYZ, to, pixels)
-            }
-            Space::XYZ => match to {
-                Space::CIELAB | Space::CIELCH => {
-                    pixels.iter_mut().for_each(|pixel| xyz_to_lab(pixel));
-                    convert_space_chunked(Space::CIELAB, to, pixels)
-                }
-                Space::OKLAB | Space::OKLCH => {
-                    pixels.iter_mut().for_each(|pixel| xyz_to_oklab(pixel));
-                    convert_space_chunked(Space::OKLAB, to, pixels)
-                }
-                Space::JZAZBZ | Space::JZCZHZ => {
-                    pixels.iter_mut().for_each(|pixel| xyz_to_jzazbz(pixel));
-                    convert_space_chunked(Space::JZAZBZ, to, pixels)
-                }
-                _ => unreachable!("XYZ tried to promote to {}", to),
-            },
-            Space::CIELAB | Space::OKLAB | Space::JZAZBZ => {
-                pixels.iter_mut().for_each(|pixel| lab_to_lch(pixel))
-            }
-        }
-    }
+    graph!(convert_space_chunked, pixels, from, to, op_chunk);
 }
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
@@ -715,14 +731,7 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
 ///
 /// Caches conversion graph for faster iteration and ignores remainder values in slice.
 pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
-    // How long has this been in unstable...
-    // let pixels: &mut [[f32; 3]] = pixels.as_chunks_mut::<3>().0;
-    let pixels: &mut [[f32; 3]] = unsafe {
-        let len = pixels.len() - (pixels.len() % 3);
-        let pixels: &mut [f32] = &mut pixels[..len];
-        std::slice::from_raw_parts_mut(pixels.as_mut_ptr().cast(), len / 3)
-    };
-    convert_space_chunked(from, to, pixels);
+    graph!(convert_space_sliced, pixels, from, to, op_inter);
 }
 
 /// Same as `convert_space_sliced` but with FFI types.
