@@ -8,7 +8,6 @@
 //!
 //! This crate references CIE Standard Illuminant D65 for functions to/from CIE XYZ
 
-use core::cmp::Ordering;
 use core::ffi::{c_char, CStr};
 
 fn spowf(n: f32, power: f32) -> f32 {
@@ -372,48 +371,6 @@ impl core::fmt::Display for Space {
     }
 }
 
-impl PartialOrd for Space {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self == other {
-            return Some(Ordering::Equal);
-        }
-        Some(match self {
-            // Base
-            Space::SRGB => Ordering::Less,
-
-            // Endcaps
-            Space::HSV => Ordering::Greater,
-            Space::CIELCH => Ordering::Greater,
-            Space::OKLCH => Ordering::Greater,
-            Space::JZCZHZ => Ordering::Greater,
-
-            // Common intermittents
-            Space::LRGB => match other {
-                Space::SRGB | Space::HSV => Ordering::Greater,
-                _ => Ordering::Less,
-            },
-            Space::XYZ => match other {
-                Space::SRGB | Space::LRGB | Space::HSV => Ordering::Greater,
-                _ => Ordering::Less,
-            },
-
-            // LAB Branches
-            Space::CIELAB => match other {
-                Space::CIELCH => Ordering::Less,
-                _ => Ordering::Greater,
-            },
-            Space::OKLAB => match other {
-                Space::OKLCH => Ordering::Less,
-                _ => Ordering::Greater,
-            },
-            Space::JZAZBZ => match other {
-                Space::JZCZHZ => Ordering::Less,
-                _ => Ordering::Greater,
-            },
-        })
-    }
-}
-
 impl Space {
     /// Returns 3 channels letters for user-facing colorspace controls
     pub fn channels(&self) -> [char; 3] {
@@ -617,97 +574,72 @@ impl Space {
 // ### Convert Space ### {{{
 
 macro_rules! op_single {
-    ($func:ident, $data:expr) => {$func($data)};
+    ($func:ident, $data:expr) => {
+        $func($data)
+    };
 }
 
 macro_rules! op_chunk {
-    ($func:ident, $data:expr) => {$data.iter_mut().for_each(|pixel| $func(pixel))};
+    ($func:ident, $data:expr) => {
+        $data.iter_mut().for_each(|pixel| $func(pixel))
+    };
 }
 
 macro_rules! op_inter {
-    ($func:ident, $data:expr) => {$data.chunks_exact_mut(3).for_each(|pixel| $func(pixel.try_into().unwrap()))};
+    ($func:ident, $data:expr) => {
+        $data
+            .chunks_exact_mut(3)
+            .for_each(|pixel| $func(pixel.try_into().unwrap()))
+    };
 }
 
+#[rustfmt::skip]
 macro_rules! graph {
     ($recurse:ident, $data:expr, $from:expr, $to:expr, $op:ident) => {
-        if $from > $to {
-            match $from {
-                Space::SRGB => unreachable!(),
-                Space::HSV => {
-                    $op!(hsv_to_srgb, $data);
-                    $recurse(Space::SRGB, $to, $data)
-                }
-                Space::LRGB => {
-                    $op!(lrgb_to_srgb, $data);
-                    $recurse(Space::SRGB, $to, $data)
-                }
-                Space::XYZ => {
-                    $op!(xyz_to_lrgb, $data);
-                    $recurse(Space::LRGB, $to, $data)
-                }
-                Space::CIELAB => {
-                    $op!(lab_to_xyz, $data);
-                    $recurse(Space::XYZ, $to, $data)
-                }
-                Space::CIELCH => {
-                    $op!(lch_to_lab, $data);
-                    $recurse(Space::CIELAB, $to, $data)
-                }
-                Space::OKLAB => {
-                    $op!(oklab_to_xyz, $data);
-                    $recurse(Space::XYZ, $to, $data)
-                }
-                Space::OKLCH => {
-                    $op!(lch_to_lab, $data);
-                    $recurse(Space::OKLAB, $to, $data)
-                }
-                Space::JZAZBZ => {
-                    $op!(jzazbz_to_xyz, $data);
-                    $recurse(Space::XYZ, $to, $data)
-                }
-                Space::JZCZHZ => {
-                    $op!(lch_to_lab, $data);
-                    $recurse(Space::JZAZBZ, $to, $data)
-                }
-            }
-        } else if $from < $to {
-            match $from {
-                // Endcaps
-                Space::HSV => unreachable!(),
-                Space::CIELCH => unreachable!(),
-                Space::OKLCH => unreachable!(),
-                Space::JZCZHZ => unreachable!(),
+        match ($from, $to) {
+            // no-ops
+            (Space::HSV, Space::HSV) => (),
+            (Space::SRGB, Space::SRGB) => (),
+            (Space::LRGB, Space::LRGB) => (),
+            (Space::XYZ, Space::XYZ) => (),
+            (Space::CIELAB, Space::CIELAB) => (),
+            (Space::CIELCH, Space::CIELCH) => (),
+            (Space::OKLAB, Space::OKLAB) => (),
+            (Space::OKLCH, Space::OKLCH) => (),
+            (Space::JZAZBZ, Space::JZAZBZ) => (),
+            (Space::JZCZHZ, Space::JZCZHZ) => (),
 
-                Space::SRGB => match $to {
-                    Space::HSV => $op!(srgb_to_hsv, $data),
-                    _ => {
-                        $op!(srgb_to_lrgb, $data);
-                        $recurse(Space::LRGB, $to, $data)
-                    }
-                },
-                Space::LRGB => {
-                    $op!(lrgb_to_xyz, $data);
-                    $recurse(Space::XYZ, $to, $data)
-                }
-                Space::XYZ => match $to {
-                    Space::CIELAB | Space::CIELCH => {
-                        $op!(xyz_to_lab, $data);
-                        $recurse(Space::CIELAB, $to, $data)
-                    }
-                    Space::OKLAB | Space::OKLCH => {
-                        $op!(xyz_to_oklab, $data);
-                        $recurse(Space::OKLAB, $to, $data)
-                    }
-                    Space::JZAZBZ | Space::JZCZHZ => {
-                        $op!(xyz_to_jzazbz, $data);
-                        $recurse(Space::JZAZBZ, $to, $data)
-                    }
-                    _ => unreachable!("XYZ tried $to promote $to {}", $to),
-                },
-                Space::CIELAB | Space::OKLAB | Space::JZAZBZ => {
-                    $op!(lab_to_lch, $data)
-                }
-            }
+            //endcaps
+            (Space::SRGB, Space::HSV) => $op!(srgb_to_hsv, $data),
+            (Space::CIELAB, Space::CIELCH)
+            | (Space::OKLAB, Space::OKLCH)
+            | (Space::JZAZBZ, Space::JZCZHZ) => $op!(lab_to_lch, $data),
+
+            // Reverse Endcaps
+            (Space::HSV, _) => { $op!(hsv_to_srgb, $data); $recurse(Space::SRGB, $to, $data) }
+            (Space::CIELCH, _) => { $op!(lch_to_lab, $data); $recurse(Space::CIELAB, $to, $data) }
+            (Space::OKLCH, _) => { $op!(lch_to_lab, $data); $recurse(Space::OKLAB, $to, $data) }
+            (Space::JZCZHZ, _) => { $op!(lch_to_lab, $data); $recurse(Space::JZAZBZ, $to, $data) }
+
+            // SRGB Up
+            (Space::SRGB, _) => { $op!(srgb_to_lrgb, $data); $recurse(Space::LRGB, $to, $data) }
+
+            // LRGB Down
+            (Space::LRGB, Space::SRGB | Space::HSV) => { $op!(lrgb_to_srgb, $data); $recurse(Space::SRGB, $to, $data) }
+            // LRGB Up
+            (Space::LRGB, _) => { $op!(lrgb_to_xyz, $data); $recurse(Space::XYZ, $to, $data) }
+
+            // XYZ Down
+            (Space::XYZ, Space::SRGB | Space::LRGB | Space::HSV) => { $op!(xyz_to_lrgb, $data); $recurse(Space::LRGB, $to, $data) }
+            // XYZ Up
+            (Space::XYZ, Space::CIELAB | Space::CIELCH) => { $op!(xyz_to_cielab, $data); $recurse(Space::CIELAB, $to, $data) }
+            (Space::XYZ, Space::OKLAB | Space::OKLCH) => { $op!(xyz_to_oklab, $data); $recurse(Space::OKLAB, $to, $data) }
+            (Space::XYZ, Space::JZAZBZ | Space::JZCZHZ) => { $op!(xyz_to_jzazbz, $data); $recurse(Space::JZAZBZ, $to, $data) }
+
+            // LAB Down
+            (Space::CIELAB, _) => { $op!(cielab_to_xyz, $data); $recurse(Space::XYZ, $to, $data) }
+            (Space::OKLAB, _) => { $op!(oklab_to_xyz, $data); $recurse(Space::XYZ, $to, $data) }
+            (Space::JZAZBZ, _) => { $op!(jzazbz_to_xyz, $data); $recurse(Space::XYZ, $to, $data) }
         }
     };
 }
@@ -973,7 +905,7 @@ pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
 #[no_mangle]
-pub extern "C" fn xyz_to_lab(pixel: &mut [f32; 3]) {
+pub extern "C" fn xyz_to_cielab(pixel: &mut [f32; 3]) {
     // Reverse D65 standard illuminant
     pixel.iter_mut().zip(D65).for_each(|(c, d)| *c /= d);
 
@@ -1163,7 +1095,7 @@ pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
 #[no_mangle]
-pub extern "C" fn lab_to_xyz(pixel: &mut [f32; 3]) {
+pub extern "C" fn cielab_to_xyz(pixel: &mut [f32; 3]) {
     *pixel = [
         (pixel[0] + 16.0) / 116.0 + pixel[1] / 500.0,
         (pixel[0] + 16.0) / 116.0,
@@ -1526,11 +1458,11 @@ mod tests {
 
     #[test]
     fn lab_forwards() {
-        func_cmp(XYZ, LAB, xyz_to_lab)
+        func_cmp(XYZ, LAB, xyz_to_cielab)
     }
     #[test]
     fn lab_backwards() {
-        func_cmp(LAB, XYZ, lab_to_xyz)
+        func_cmp(LAB, XYZ, cielab_to_xyz)
     }
 
     #[test]
@@ -1670,8 +1602,8 @@ mod tests {
             ("lrgb_backwards", lrgb_to_srgb),
             ("xyz_forwards", lrgb_to_xyz),
             ("xyz_backwards", xyz_to_lrgb),
-            ("lab_forwards", xyz_to_lab),
-            ("lab_backwards", lab_to_xyz),
+            ("lab_forwards", xyz_to_cielab),
+            ("lab_backwards", cielab_to_xyz),
             ("lch_forwards", lab_to_lch),
             ("lch_backwards", lch_to_lab),
             ("oklab_forwards", xyz_to_oklab),
