@@ -138,8 +138,8 @@ const ICTCP_M2_INV: [[f32; 3]; 3] = [
     [1., -0.008609037, -0.111029625],
     [1., 0.5600313357, -0.320627175],
 ];
-/// 3 * 3x3 Matrix multiply
-fn matmul3(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
+/// 3 * 3x3 Matrix multiply with vector transposed, ie pixel @ matrix
+fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
     [
         pixel[0] * matrix[0][0] + pixel[1] * matrix[1][0] + pixel[2] * matrix[2][0],
         pixel[0] * matrix[0][1] + pixel[1] * matrix[1][1] + pixel[2] * matrix[2][1],
@@ -147,8 +147,8 @@ fn matmul3(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
     ]
 }
 
-/// Transposed 3 * 3x3 matrix multiply
-fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
+/// Transposed 3 * 3x3 matrix multiply, ie matrix @ pixel
+fn matmul3(matrix: [[f32; 3]; 3], pixel: [f32; 3]) -> [f32; 3] {
     [
         pixel[0] * matrix[0][0] + pixel[1] * matrix[0][1] + pixel[2] * matrix[0][2],
         pixel[0] * matrix[1][0] + pixel[1] * matrix[1][1] + pixel[2] * matrix[1][2],
@@ -898,7 +898,7 @@ pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
 #[no_mangle]
 pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
-    *pixel = matmul3t(*pixel, XYZ65_MAT)
+    *pixel = matmul3(XYZ65_MAT, *pixel)
 }
 
 /// Convert from CIE XYZ to CIE LAB.
@@ -929,9 +929,9 @@ pub extern "C" fn xyz_to_cielab(pixel: &mut [f32; 3]) {
 /// <https://bottosson.github.io/posts/oklab/>
 #[no_mangle]
 pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
-    let mut lms = matmul3(*pixel, OKLAB_M1);
+    let mut lms = matmul3t(*pixel, OKLAB_M1);
     lms.iter_mut().for_each(|c| *c = c.cbrt());
-    *pixel = matmul3(lms, OKLAB_M2);
+    *pixel = matmul3t(lms, OKLAB_M2);
 }
 
 /// Convert CIE XYZ to JzAzBz
@@ -939,18 +939,18 @@ pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
 #[no_mangle]
 pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
-    let mut lms = matmul3t(
+    let mut lms = matmul3(
+        JZAZBZ_M1,
         [
             pixel[0] * JZAZBZ_B - (JZAZBZ_B - 1.0) * pixel[2],
             pixel[1] * JZAZBZ_G - (JZAZBZ_G - 1.0) * pixel[0],
             pixel[2],
         ],
-        JZAZBZ_M1,
     );
 
     lms.iter_mut().for_each(|e| *e = pqz_oetf(*e));
 
-    let lab = matmul3t(lms, JZAZBZ_M2);
+    let lab = matmul3(JZAZBZ_M2, lms);
 
     *pixel = [
         ((1.0 + JZAZBZ_D) * lab[0]) / (1.0 + JZAZBZ_D * lab[0]) - JZAZBZ_D0,
@@ -980,10 +980,10 @@ pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
     // };
     // pixel.iter_mut().for_each(|c| bt2020(c));
 
-    let mut lms = matmul3t(*pixel, ICTCP_M1);
+    let mut lms = matmul3(ICTCP_M1, *pixel);
     // lms prime
     lms.iter_mut().for_each(|c| *c = pq_oetf(*c));
-    *pixel = matmul3t(lms, ICTCP_M2);
+    *pixel = matmul3(ICTCP_M2, lms);
 }
 
 /// Converts an LAB based space to a cylindrical representation.
@@ -1088,7 +1088,7 @@ pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
 #[no_mangle]
 pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
-    *pixel = matmul3t(*pixel, XYZ65_MAT_INV)
+    *pixel = matmul3(XYZ65_MAT_INV, *pixel)
 }
 
 /// Convert from CIE LAB to CIE XYZ.
@@ -1118,9 +1118,9 @@ pub extern "C" fn cielab_to_xyz(pixel: &mut [f32; 3]) {
 /// <https://bottosson.github.io/posts/oklab/>
 #[no_mangle]
 pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
-    let mut lms = matmul3(*pixel, OKLAB_M2_INV);
+    let mut lms = matmul3t(*pixel, OKLAB_M2_INV);
     lms.iter_mut().for_each(|c| *c = c.powi(3));
-    *pixel = matmul3(lms, OKLAB_M1_INV);
+    *pixel = matmul3t(lms, OKLAB_M1_INV);
 }
 
 /// Convert JzAzBz to CIE XYZ
@@ -1128,18 +1128,18 @@ pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
 #[no_mangle]
 pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
-    let mut lms = matmul3t(
+    let mut lms = matmul3(
+        JZAZBZ_M2_INV,
         [
             (pixel[0] + JZAZBZ_D0) / (1.0 + JZAZBZ_D - JZAZBZ_D * (pixel[0] + JZAZBZ_D0)),
             pixel[1],
             pixel[2],
         ],
-        JZAZBZ_M2_INV,
     );
 
     lms.iter_mut().for_each(|c| *c = pqz_eotf(*c));
 
-    *pixel = matmul3t(lms, JZAZBZ_M1_INV);
+    *pixel = matmul3(JZAZBZ_M1_INV, lms);
 
     pixel[0] = (pixel[0] + (JZAZBZ_B - 1.0) * pixel[2]) / JZAZBZ_B;
     pixel[1] = (pixel[1] + (JZAZBZ_G - 1.0) * pixel[0]) / JZAZBZ_G;
@@ -1158,10 +1158,10 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 // #[no_mangle]
 pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
     // lms prime
-    let mut lms = matmul3t(*pixel, ICTCP_M2_INV);
+    let mut lms = matmul3(ICTCP_M2_INV, *pixel);
     // non-prime lms
     lms.iter_mut().for_each(|c| *c = pq_eotf(*c));
-    *pixel = matmul3t(lms, ICTCP_M1_INV);
+    *pixel = matmul3(ICTCP_M1_INV, lms);
 }
 
 /// Retrieves an LAB based space from its cylindrical representation.
