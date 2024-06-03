@@ -288,11 +288,11 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 }
 
 /// Transposed 3 * 3x3 matrix multiply, ie matrix @ pixel
-fn matmul3(matrix: [[f32; 3]; 3], pixel: [f32; 3]) -> [f32; 3] {
+fn matmul3<T: DType>(matrix: [[f32; 3]; 3], pixel: [T; 3]) -> [T; 3] {
     [
-        pixel[0] * matrix[0][0] + pixel[1] * matrix[0][1] + pixel[2] * matrix[0][2],
-        pixel[0] * matrix[1][0] + pixel[1] * matrix[1][1] + pixel[2] * matrix[1][2],
-        pixel[0] * matrix[2][0] + pixel[1] * matrix[2][1] + pixel[2] * matrix[2][2],
+        pixel[0].fma(DType::f32(matrix[0][0]), pixel[1].fma(DType::f32(matrix[0][1]), pixel[2] * DType::f32(matrix[0][2]))),
+        pixel[0].fma(DType::f32(matrix[1][0]), pixel[1].fma(DType::f32(matrix[1][1]), pixel[2] * DType::f32(matrix[1][2]))),
+        pixel[0].fma(DType::f32(matrix[2][0]), pixel[1].fma(DType::f32(matrix[2][1]), pixel[2] * DType::f32(matrix[2][2]))),
     ]
 }
 // ### MATRICES ### }}}
@@ -1048,9 +1048,13 @@ pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-#[no_mangle]
-pub extern "C" fn lrgb_to_xyz(pixel: &mut [f32; 3]) {
+pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
     *pixel = matmul3(XYZ65_MAT, *pixel)
+}
+
+#[no_mangle]
+extern "C" fn lrgb_to_xyz_f32(pixel: &mut [f32; 3]) {
+    lrgb_to_xyz(pixel)
 }
 
 /// Convert from CIE XYZ to CIE LAB.
@@ -1601,7 +1605,7 @@ mod tests {
 
     #[test]
     fn xyz_forwards() {
-        func_cmp(LRGB, XYZ, lrgb_to_xyz)
+        func_cmp(LRGB, XYZ, lrgb_to_xyz_f32)
     }
     #[test]
     fn xyz_backwards() {
@@ -1752,7 +1756,7 @@ mod tests {
             ("hsv_backwards", hsv_to_srgb),
             ("lrgb_forwards", srgb_to_lrgb),
             ("lrgb_backwards", lrgb_to_srgb),
-            ("xyz_forwards", lrgb_to_xyz),
+            ("xyz_forwards", lrgb_to_xyz_f32),
             ("xyz_backwards", xyz_to_lrgb),
             ("lab_forwards", xyz_to_cielab),
             ("lab_backwards", cielab_to_xyz),

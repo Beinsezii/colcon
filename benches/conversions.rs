@@ -1,6 +1,7 @@
 #![feature(portable_simd)]
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use colcon::{Space, convert_space};
+//use std::simd::prelude::*;
 
 fn pixels() -> Box<[f32]> {
     let size = 512;
@@ -23,6 +24,10 @@ pub fn conversions(c: &mut Criterion) {
 
     c.bench_function("lrgb_to_xyz", |b| b.iter(|| {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_xyz(pixel.try_into().unwrap())));
+    } ));
+
+    c.bench_function("lrgb_to_xyz_simd", |b| b.iter(|| {
+        black_box(pixels.clone().as_simd_mut::<32>().1.chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_xyz(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("xyz_to_cielab", |b| b.iter(|| {
