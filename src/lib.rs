@@ -33,9 +33,18 @@ trait DT:
     Sized + Copy + Add<Output = Self> + Div<Output = Self> + Mul<Output = Self> + Sub<Output = Self> + Rem<Output = Self>
 {
     fn f32(b: f32) -> Self;
-    fn fma(self, mul: Self, add: Self) -> Self;
+    fn _fma(self, mul: Self, add: Self) -> Self;
     fn powf(self, b: Self) -> Self;
     fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self;
+
+    fn fma(self, mul: Self, add: Self) -> Self {
+        // other non-x86 names?
+        if cfg!(target_feature = "fma") {
+            self._fma(mul, add) // crazy slow without FMA3
+        } else {
+            self * mul + add
+        }
+    }
 }
 
 impl DT for f32 {
@@ -43,7 +52,7 @@ impl DT for f32 {
         b
     }
 
-    fn fma(self, mul: Self, add: Self) -> Self {
+    fn _fma(self, mul: Self, add: Self) -> Self {
         self.mul_add(mul, add)
     }
 
@@ -70,7 +79,7 @@ impl DT for f64 {
         b.into()
     }
 
-    fn fma(self, mul: Self, add: Self) -> Self {
+    fn _fma(self, mul: Self, add: Self) -> Self {
         self.mul_add(mul, add)
     }
 
@@ -101,7 +110,7 @@ where
         Self::splat(object)
     }
 
-    fn fma(self, mul: Self, add: Self) -> Self {
+    fn _fma(self, mul: Self, add: Self) -> Self {
         self.mul_add(mul, add)
     }
 
