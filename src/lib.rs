@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "nightly", feature(portable_simd))]
 #![warn(missing_docs)]
 
 //! Simple colorspace conversions in pure Rust.
@@ -9,8 +10,13 @@
 //! This crate references CIE Standard Illuminant D65 for functions to/from CIE XYZ
 
 use core::ffi::{c_char, CStr};
-//use core::cmp::PartialOrd;
-//use core::ops::{Add, Div, Mul, Rem, Sub};
+use core::ops::{Add, Div, Mul, Rem, Sub};
+
+#[cfg(feature = "nightly")]
+use std::simd::prelude::*;
+
+#[cfg(feature = "nightly")]
+use std::simd::{LaneCount, StdFloat, SupportedLaneCount};
 
 fn spowf(n: f32, power: f32) -> f32 {
     n.abs().powf(power).copysign(n)
@@ -19,16 +25,21 @@ fn spowf(n: f32, power: f32) -> f32 {
 enum Cmp {
     Gt,
     Lt,
-    GtEq,
-    LtEq,
+    Ge,
+    Le,
 }
 
-trait DType: Sized + Copy {
+trait DType:
+    Sized
+    + Copy
+    + Add<Output = Self>
+    + Div<Output = Self>
+    + Mul<Output = Self>
+    + Sub<Output = Self>
+    + Rem<Output = Self>
+{
     fn f32(b: f32) -> Self;
-    fn add(self, b: Self) -> Self;
-    fn sub(self, b: Self) -> Self;
-    fn div(self, b: Self) -> Self;
-    fn mul(self, b: Self) -> Self;
+    fn fma(self, mul: Self, add: Self) -> Self;
     fn powf(self, b: Self) -> Self;
     fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
         self,
@@ -44,20 +55,8 @@ impl DType for f32 {
         b
     }
 
-    fn add(self, b: Self) -> Self {
-        self + b
-    }
-
-    fn sub(self, b: Self) -> Self {
-        self - b
-    }
-
-    fn div(self, b: Self) -> Self {
-        self / b
-    }
-
-    fn mul(self, b: Self) -> Self {
-        self * b
+    fn fma(self, mul: Self, add: Self) -> Self {
+        self.mul_add(mul, add)
     }
 
     fn powf(self, b: Self) -> Self {
@@ -74,8 +73,8 @@ impl DType for f32 {
         if match cmp {
             Cmp::Gt => self > b,
             Cmp::Lt => self < b,
-            Cmp::GtEq => self >= b,
-            Cmp::LtEq => self <= b,
+            Cmp::Ge => self >= b,
+            Cmp::Le => self <= b,
         } {
             x()
         } else {
@@ -84,69 +83,74 @@ impl DType for f32 {
     }
 }
 
-impl<const N: usize> DType for [f32; N] {
-    fn f32(object: f32) -> Self {
-        [object; N]
+impl DType for f64 {
+    fn f32(b: f32) -> Self {
+        b.into()
     }
 
-    fn add(mut self, b: Self) -> Self {
-        self.iter_mut()
-            .zip(b.into_iter())
-            .for_each(|(a, b)| *a = *a + b);
-        self
+    fn fma(self, mul: Self, add: Self) -> Self {
+        self.mul_add(mul, add)
     }
 
-    fn sub(mut self, b: Self) -> Self {
-        self.iter_mut()
-            .zip(b.into_iter())
-            .for_each(|(a, b)| *a = *a - b);
-        self
-    }
-
-    fn div(mut self, b: Self) -> Self {
-        self.iter_mut()
-            .zip(b.into_iter())
-            .for_each(|(a, b)| *a = *a / b);
-        self
-    }
-
-    fn mul(mut self, b: Self) -> Self {
-        self.iter_mut()
-            .zip(b.into_iter())
-            .for_each(|(a, b)| *a = *a * b);
-        self
-    }
-
-    fn powf(mut self, b: Self) -> Self {
-        self.iter_mut()
-            .zip(b.into_iter())
-            .for_each(|(a, b)| *a = a.powf(b));
-        self
+    fn powf(self, b: Self) -> Self {
+        self.powf(b)
     }
 
     fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
-        mut self,
+        self,
         b: Self,
         cmp: Cmp,
         x: F,
         y: G,
     ) -> Self {
-        self.iter_mut()
-            .zip(b.into_iter())
-            .zip(x().into_iter().zip(y().into_iter()))
-            .for_each(|((a, b), (x, y))| {
-                if match cmp {
-                    Cmp::Gt => *a > b,
-                    Cmp::Lt => *a < b,
-                    Cmp::GtEq => *a >= b,
-                    Cmp::LtEq => *a <= b,
-                } {
-                    *a = x
-                } else {
-                    *a = y
-                }
-            });
+        if match cmp {
+            Cmp::Gt => self > b,
+            Cmp::Lt => self < b,
+            Cmp::Ge => self >= b,
+            Cmp::Le => self <= b,
+        } {
+            x()
+        } else {
+            y()
+        }
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<const N: usize> DType for Simd<f32, N>
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    fn f32(object: f32) -> Self {
+        Self::splat(object)
+    }
+
+    fn fma(self, mul: Self, add: Self) -> Self {
+        self.mul_add(mul, add)
+    }
+
+    fn powf(mut self, b: Self) -> Self {
+        self.as_mut_array()
+            .iter_mut()
+            .zip(b.as_array().iter())
+            .for_each(|(a, b)| *a = a.powf(*b));
         self
+    }
+
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
+        self,
+        b: Self,
+        cmp: Cmp,
+        x: F,
+        y: G,
+    ) -> Self {
+        match cmp {
+            Cmp::Gt => self.simd_gt(b),
+            Cmp::Lt => self.simd_lt(b),
+            Cmp::Ge => self.simd_ge(b),
+            Cmp::Le => self.simd_le(b),
+        }
+        .select(x(), y())
     }
 }
 
@@ -300,29 +304,23 @@ fn matmul3(matrix: [[f32; 3]; 3], pixel: [f32; 3]) -> [f32; 3] {
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
 //#[no_mangle]
 //pub fn srgb_eotf<T: DType>(n: T) -> T {
-//    if n <= SRGBEOTF_CHI.into() {
-//        n / SRGBEOTF_PHI.into()
+//    if n <= SRGBEOTF_CHI {
+//        n / SRGBEOTF_PHI
 //    } else {
-//        ((n + SRGBEOTF_ALPHA.into()) / (SRGBEOTF_ALPHA + 1.0).into()).powf(SRGBEOTF_GAMMA.into())
+//        ((n + SRGBEOTF_ALPHA) / (SRGBEOTF_ALPHA + 1.0)).powf(SRGBEOTF_GAMMA)
 //    }
 //}
 
 pub fn srgb_eotf<T: DType>(n: T) -> T {
     n.branch(
         DType::f32(SRGBEOTF_CHI),
-        Cmp::LtEq,
-        || n.div(DType::f32(SRGBEOTF_PHI)),
+        Cmp::Le,
+        || n / DType::f32(SRGBEOTF_PHI),
         || {
-            n.add(DType::f32(SRGBEOTF_ALPHA))
-                .div(DType::f32(SRGBEOTF_ALPHA + 1.0))
+            ((n + DType::f32(SRGBEOTF_ALPHA)) / DType::f32(SRGBEOTF_ALPHA + 1.0))
                 .powf(DType::f32(SRGBEOTF_GAMMA))
         },
     )
-    //if n <= SRGBEOTF_CHI.into() {
-    //    n / SRGBEOTF_PHI.into()
-    //} else {
-    //    ((n + SRGBEOTF_ALPHA.into()) / (SRGBEOTF_ALPHA + 1.0).into()).powf(SRGBEOTF_GAMMA.into())
-    //}
 }
 
 /// Inverse sRGB Electro-Optical Transfer Function
