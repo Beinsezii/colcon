@@ -14,6 +14,39 @@ fn spowf(n: f32, power: f32) -> f32 {
     n.abs().powf(power).copysign(n)
 }
 
+/// Create an array of separate channel buffers from a single interwoven buffer.
+/// Copies the data.
+pub fn unweave<const N: usize>(slice: &[f32]) -> [Box<[f32]>; N] {
+    let len = slice.len() / N;
+    let mut result: [Vec<f32>; N] = (0..N)
+        .map(|_| Vec::with_capacity(len))
+        .collect::<Vec<Vec<f32>>>()
+        .try_into()
+        .unwrap();
+
+    slice.chunks_exact(N).for_each(|chunk| {
+        chunk
+            .iter()
+            .zip(result.iter_mut())
+            .for_each(|(v, arr)| arr.push(*v));
+    });
+
+    result.map(|v| v.into_boxed_slice())
+}
+
+/// Create a monolithic woven buffer using unwoven independent channel buffers.
+/// Copies the data.
+pub fn weave<const N: usize>(array: [Box<[f32]>; N]) -> Box<[f32]> {
+    let len = array[0].len();
+    (0..len)
+        .into_iter()
+        .fold(Vec::with_capacity(len * N), |mut acc, it| {
+            (0..N).into_iter().for_each(|n| acc.push(array[n][it]));
+            acc
+        })
+        .into_boxed_slice()
+}
+
 // ### CONSTS ### {{{
 
 /// Standard Illuminant D65.
@@ -1590,6 +1623,31 @@ mod tests {
         let mut smol = pixels.clone();
         convert_space_sliced(Space::SRGB, Space::CIELCH, &mut smol);
         assert_eq!(pixels, smol);
+    }
+
+    #[test]
+    fn interweave() {
+        let slice: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+            acc.extend_from_slice(it);
+            acc
+        });
+        let mut new = slice.clone();
+        new.push(1234.5678);
+
+        let deinterleaved = unweave::<3>(&new);
+        assert_eq!(deinterleaved[0].len(), deinterleaved[1].len());
+        assert_eq!(deinterleaved[0].len(), deinterleaved[2].len());
+        let chunked: Vec<[f32; 3]> = (0..deinterleaved[0].len()).fold(Vec::new(), |mut acc, it| {
+            acc.push([
+                deinterleaved[0][it],
+                deinterleaved[1][it],
+                deinterleaved[2][it],
+            ]);
+            acc
+        });
+
+        assert_eq!(SRGB, &chunked);
+        assert_eq!(slice.as_slice(), weave(deinterleaved).as_ref())
     }
 
     #[test]
