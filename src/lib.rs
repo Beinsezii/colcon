@@ -9,9 +9,145 @@
 //! This crate references CIE Standard Illuminant D65 for functions to/from CIE XYZ
 
 use core::ffi::{c_char, CStr};
+//use core::cmp::PartialOrd;
+//use core::ops::{Add, Div, Mul, Rem, Sub};
 
 fn spowf(n: f32, power: f32) -> f32 {
     n.abs().powf(power).copysign(n)
+}
+
+enum Cmp {
+    Gt,
+    Lt,
+    GtEq,
+    LtEq,
+}
+
+trait DType: Sized + Copy {
+    fn f32(b: f32) -> Self;
+    fn add(self, b: Self) -> Self;
+    fn sub(self, b: Self) -> Self;
+    fn div(self, b: Self) -> Self;
+    fn mul(self, b: Self) -> Self;
+    fn powf(self, b: Self) -> Self;
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
+        self,
+        b: Self,
+        cmp: Cmp,
+        x: F,
+        y: G,
+    ) -> Self;
+}
+
+impl DType for f32 {
+    fn f32(b: f32) -> Self {
+        b
+    }
+
+    fn add(self, b: Self) -> Self {
+        self + b
+    }
+
+    fn sub(self, b: Self) -> Self {
+        self - b
+    }
+
+    fn div(self, b: Self) -> Self {
+        self / b
+    }
+
+    fn mul(self, b: Self) -> Self {
+        self * b
+    }
+
+    fn powf(self, b: Self) -> Self {
+        self.powf(b)
+    }
+
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
+        self,
+        b: Self,
+        cmp: Cmp,
+        x: F,
+        y: G,
+    ) -> Self {
+        if match cmp {
+            Cmp::Gt => self > b,
+            Cmp::Lt => self < b,
+            Cmp::GtEq => self >= b,
+            Cmp::LtEq => self <= b,
+        } {
+            x()
+        } else {
+            y()
+        }
+    }
+}
+
+impl<const N: usize> DType for [f32; N] {
+    fn f32(object: f32) -> Self {
+        [object; N]
+    }
+
+    fn add(mut self, b: Self) -> Self {
+        self.iter_mut()
+            .zip(b.into_iter())
+            .for_each(|(a, b)| *a = *a + b);
+        self
+    }
+
+    fn sub(mut self, b: Self) -> Self {
+        self.iter_mut()
+            .zip(b.into_iter())
+            .for_each(|(a, b)| *a = *a - b);
+        self
+    }
+
+    fn div(mut self, b: Self) -> Self {
+        self.iter_mut()
+            .zip(b.into_iter())
+            .for_each(|(a, b)| *a = *a / b);
+        self
+    }
+
+    fn mul(mut self, b: Self) -> Self {
+        self.iter_mut()
+            .zip(b.into_iter())
+            .for_each(|(a, b)| *a = *a * b);
+        self
+    }
+
+    fn powf(mut self, b: Self) -> Self {
+        self.iter_mut()
+            .zip(b.into_iter())
+            .for_each(|(a, b)| *a = a.powf(b));
+        self
+    }
+
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
+        mut self,
+        b: Self,
+        cmp: Cmp,
+        x: F,
+        y: G,
+    ) -> Self {
+        self.iter_mut()
+            .zip(b.into_iter())
+            .zip(x().into_iter().zip(y().into_iter()))
+            .for_each(|((a, b), (x, y))| {
+                if match cmp {
+                    Cmp::Gt => *a > b,
+                    Cmp::Lt => *a < b,
+                    Cmp::GtEq => *a >= b,
+                    Cmp::LtEq => *a <= b,
+                } {
+                    *a = x
+                } else {
+                    *a = y
+                }
+            });
+        self
+    }
 }
 
 // ### CONSTS ### {{{
@@ -162,13 +298,31 @@ fn matmul3(matrix: [[f32; 3]; 3], pixel: [f32; 3]) -> [f32; 3] {
 /// sRGB Electro-Optical Transfer Function
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
-#[no_mangle]
-pub extern "C" fn srgb_eotf(n: f32) -> f32 {
-    if n <= SRGBEOTF_CHI {
-        n / SRGBEOTF_PHI
-    } else {
-        ((n + SRGBEOTF_ALPHA) / (1.0 + SRGBEOTF_ALPHA)).powf(SRGBEOTF_GAMMA)
-    }
+//#[no_mangle]
+//pub fn srgb_eotf<T: DType>(n: T) -> T {
+//    if n <= SRGBEOTF_CHI.into() {
+//        n / SRGBEOTF_PHI.into()
+//    } else {
+//        ((n + SRGBEOTF_ALPHA.into()) / (SRGBEOTF_ALPHA + 1.0).into()).powf(SRGBEOTF_GAMMA.into())
+//    }
+//}
+
+pub fn srgb_eotf<T: DType>(n: T) -> T {
+    n.branch(
+        DType::f32(SRGBEOTF_CHI),
+        Cmp::LtEq,
+        || n.div(DType::f32(SRGBEOTF_PHI)),
+        || {
+            n.add(DType::f32(SRGBEOTF_ALPHA))
+                .div(DType::f32(SRGBEOTF_ALPHA + 1.0))
+                .powf(DType::f32(SRGBEOTF_GAMMA))
+        },
+    )
+    //if n <= SRGBEOTF_CHI.into() {
+    //    n / SRGBEOTF_PHI.into()
+    //} else {
+    //    ((n + SRGBEOTF_ALPHA.into()) / (SRGBEOTF_ALPHA + 1.0).into()).powf(SRGBEOTF_GAMMA.into())
+    //}
 }
 
 /// Inverse sRGB Electro-Optical Transfer Function

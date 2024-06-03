@@ -73,7 +73,12 @@ pub fn conversions(c: &mut Criterion) {
     } ));
 
     c.bench_function("srgb_eotf", |b| b.iter(|| {
-        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf(*n)));
+        const N: usize = 16;
+        black_box(pixels.clone().chunks_exact_mut(N).for_each(|simd| {
+            let simd: &mut [f32; N] = simd.try_into().unwrap();
+            *simd = colcon::srgb_eotf(*simd);
+        }));
+        //black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf(*n)));
     } ));
 
     c.bench_function("srgb_eotf_inverse", |b| b.iter(|| {
