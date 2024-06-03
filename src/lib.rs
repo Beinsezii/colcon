@@ -152,6 +152,35 @@ where
         }
         .select(x(), y())
     }
+
+/// Create an array of separate channel buffers from a single interwoven buffer.
+/// Copies the data.
+pub fn unweave<const N: usize>(slice: &[f32]) -> [Box<[f32]>; N] {
+    let len = slice.len() / N;
+    let mut result: [Vec<f32>; N] = (0..N)
+        .map(|_| Vec::with_capacity(len))
+        .collect::<Vec<Vec<f32>>>()
+        .try_into()
+        .unwrap();
+
+    slice.chunks_exact(N).for_each(|chunk| {
+        chunk.iter().zip(result.iter_mut()).for_each(|(v, arr)| arr.push(*v));
+    });
+
+    result.map(|v| v.into_boxed_slice())
+}
+
+/// Create a monolithic woven buffer using unwoven independent channel buffers.
+/// Copies the data.
+pub fn weave<const N: usize>(array: [Box<[f32]>; N]) -> Box<[f32]> {
+    let len = array[0].len();
+    (0..len)
+        .into_iter()
+        .fold(Vec::with_capacity(len * N), |mut acc, it| {
+            (0..N).into_iter().for_each(|n| acc.push(array[n][it]));
+            acc
+        })
+        .into_boxed_slice()
 }
 
 // ### CONSTS ### {{{
@@ -822,12 +851,7 @@ pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
 ///
 /// Returns 0 on success, 1 on invalid `from`, 2 on invalid `to`, 3 on invalid `pixels`
 #[no_mangle]
-pub extern "C" fn convert_space_ffi(
-    from: *const c_char,
-    to: *const c_char,
-    pixels: *mut f32,
-    len: usize,
-) -> i32 {
+pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
     let from = unsafe {
         if from.is_null() {
             return 1;
@@ -873,13 +897,7 @@ pub extern "C" fn convert_space_ffi(
 
 /// Same as `convert_space`, ignores the 4th value in `pixel`.
 pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
-    unsafe {
-        convert_space(
-            from,
-            to,
-            pixel.get_unchecked_mut(0..3).try_into().unwrap_unchecked(),
-        )
-    }
+    unsafe { convert_space(from, to, pixel.get_unchecked_mut(0..3).try_into().unwrap_unchecked()) }
 }
 
 // ### Convert Space ### }}}
@@ -924,14 +942,10 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     let seps = [',', ':', ';'];
 
     // Find Space at front then trim
-    if let Some(i) =
-        s.find(|c: char| c.is_whitespace() || seps.contains(&c) || ['(', '[', '{'].contains(&c))
-    {
+    if let Some(i) = s.find(|c: char| c.is_whitespace() || seps.contains(&c) || ['(', '[', '{'].contains(&c)) {
         if let Ok(sp) = Space::try_from(&s[..i]) {
             space = sp;
-            s = rm_paren(
-                s[i..].trim_start_matches(|c: char| c.is_whitespace() || seps.contains(&c)),
-            );
+            s = rm_paren(s[i..].trim_start_matches(|c: char| c.is_whitespace() || seps.contains(&c)));
         }
     }
 
@@ -1523,11 +1537,7 @@ mod tests {
         pix_cmp(&input, reference, epsilon, skips);
     }
 
-    fn func_cmp(
-        input: &[[f32; 3]],
-        reference: &[[f32; 3]],
-        function: extern "C" fn(&mut [f32; 3]),
-    ) {
+    fn func_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3])) {
         func_cmp_full(input, reference, function, 1e-3, &[])
     }
 
@@ -1544,20 +1554,8 @@ mod tests {
         pix_cmp(&input, reference, epsilon, skips)
     }
 
-    fn conv_cmp(
-        input_space: Space,
-        input: &[[f32; 3]],
-        reference_space: Space,
-        reference: &[[f32; 3]],
-    ) {
-        conv_cmp_full(
-            input_space,
-            input,
-            reference_space,
-            reference,
-            1e-2,
-            &[0, 7],
-        )
+    fn conv_cmp(input_space: Space, input: &[[f32; 3]], reference_space: Space, reference: &[[f32; 3]]) {
+        conv_cmp_full(input_space, input, reference_space, reference, 1e-2, &[0, 7])
     }
     // ### Comparison FNs ### }}}
 
@@ -1570,8 +1568,7 @@ mod tests {
     #[test]
     fn irgb_from() {
         let mut srgb = irgb_to_srgb(IRGB);
-        srgb.iter_mut()
-            .for_each(|c| *c = (*c * 100.0).round() / 100.0);
+        srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
         assert_eq!([0.2, 0.35, 0.95], srgb)
     }
 
@@ -1749,6 +1746,27 @@ mod tests {
     }
 
     #[test]
+    fn interweave() {
+        let slice: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+            acc.extend_from_slice(it);
+            acc
+        });
+        let mut new = slice.clone();
+        new.push(1234.5678);
+
+        let deinterleaved = unweave::<3>(&new);
+        assert_eq!(deinterleaved[0].len(), deinterleaved[1].len());
+        assert_eq!(deinterleaved[0].len(), deinterleaved[2].len());
+        let chunked: Vec<[f32; 3]> = (0..deinterleaved[0].len()).fold(Vec::new(), |mut acc, it| {
+            acc.push([deinterleaved[0][it], deinterleaved[1][it], deinterleaved[2][it]]);
+            acc
+        });
+
+        assert_eq!(SRGB, &chunked);
+        assert_eq!(slice.as_slice(), weave(deinterleaved).as_ref())
+    }
+
+    #[test]
     fn nan_checks() {
         let it = [1e+3, -1e+3, 1e-3, -1e-3];
         let fns: &[(&'static str, extern "C" fn(&mut [f32; 3]))] = &[
@@ -1817,10 +1835,7 @@ mod tests {
     // ### Str2Col ### {{{
     #[test]
     fn str2col_base() {
-        assert_eq!(
-            str2col("0.2, 0.5, 0.6"),
-            Some((Space::SRGB, [0.2, 0.5, 0.6]))
-        )
+        assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
     }
 
     #[test]
@@ -1830,10 +1845,7 @@ mod tests {
 
     #[test]
     fn str2col_base_lop() {
-        assert_eq!(
-            str2col("0.2,0.5, 0.6"),
-            Some((Space::SRGB, [0.2, 0.5, 0.6]))
-        )
+        assert_eq!(str2col("0.2,0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
     }
 
     #[test]
@@ -1843,26 +1855,17 @@ mod tests {
 
     #[test]
     fn str2col_base_bare_fat() {
-        assert_eq!(
-            str2col("  0.2   0.5     0.6 "),
-            Some((Space::SRGB, [0.2, 0.5, 0.6]))
-        )
+        assert_eq!(str2col("  0.2   0.5     0.6 "), Some((Space::SRGB, [0.2, 0.5, 0.6])))
     }
 
     #[test]
     fn str2col_base_paren() {
-        assert_eq!(
-            str2col("(0.2 0.5 0.6)"),
-            Some((Space::SRGB, [0.2, 0.5, 0.6]))
-        )
+        assert_eq!(str2col("(0.2 0.5 0.6)"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
     }
 
     #[test]
     fn str2col_base_paren2() {
-        assert_eq!(
-            str2col("{ 0.2 : 0.5 : 0.6 }"),
-            Some((Space::SRGB, [0.2, 0.5, 0.6]))
-        )
+        assert_eq!(str2col("{ 0.2 : 0.5 : 0.6 }"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
     }
 
     #[test]
@@ -1887,50 +1890,32 @@ mod tests {
 
     #[test]
     fn str2col_lch() {
-        assert_eq!(
-            str2col("lch(50, 30, 160)"),
-            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
-        )
+        assert_eq!(str2col("lch(50, 30, 160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
     }
 
     #[test]
     fn str2col_lch_space() {
-        assert_eq!(
-            str2col("lch 50, 30, 160"),
-            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
-        )
+        assert_eq!(str2col("lch 50, 30, 160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
     }
 
     #[test]
     fn str2col_lch_colon() {
-        assert_eq!(
-            str2col("lch:50:30:160"),
-            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
-        )
+        assert_eq!(str2col("lch:50:30:160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
     }
 
     #[test]
     fn str2col_lch_semicolon() {
-        assert_eq!(
-            str2col("lch;50;30;160"),
-            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
-        )
+        assert_eq!(str2col("lch;50;30;160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
     }
 
     #[test]
     fn str2col_lch_mixed() {
-        assert_eq!(
-            str2col("lch; (50,30,160)"),
-            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
-        )
+        assert_eq!(str2col("lch; (50,30,160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
     }
 
     #[test]
     fn str2col_lch_mixed2() {
-        assert_eq!(
-            str2col("lch(50; 30; 160)"),
-            Some((Space::CIELCH, [50.0, 30.0, 160.0]))
-        )
+        assert_eq!(str2col("lch(50; 30; 160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
     }
 
     #[test]
@@ -1952,11 +1937,7 @@ mod tests {
             str2col("oklch 100% 100% 100%"),
             Some((
                 Space::OKLCH,
-                [
-                    Space::OKLCH.srgb_quant100()[0],
-                    Space::OKLCH.srgb_quant100()[1],
-                    360.0,
-                ]
+                [Space::OKLCH.srgb_quant100()[0], Space::OKLCH.srgb_quant100()[1], 360.0]
             ))
         )
     }
@@ -1982,11 +1963,7 @@ mod tests {
             str2col("oklch 0% 0% 0%"),
             Some((
                 Space::OKLCH,
-                [
-                    Space::OKLCH.srgb_quant0()[0],
-                    Space::OKLCH.srgb_quant0()[1],
-                    0.0,
-                ]
+                [Space::OKLCH.srgb_quant0()[0], Space::OKLCH.srgb_quant0()[1], 0.0]
             ))
         )
     }
@@ -1997,11 +1974,7 @@ mod tests {
             str2col("oklab 0.5 100.000% 0%"),
             Some((
                 Space::OKLAB,
-                [
-                    0.5,
-                    Space::OKLAB.srgb_quant100()[1],
-                    Space::OKLAB.srgb_quant0()[2],
-                ]
+                [0.5, Space::OKLAB.srgb_quant100()[1], Space::OKLAB.srgb_quant0()[2]]
             ))
         )
     }
@@ -2023,8 +1996,7 @@ mod tests {
 
     #[test]
     fn str2space_base() {
-        let pix = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB)
-            .expect("STR2SPACE_BASE FAIL");
+        let pix = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB).expect("STR2SPACE_BASE FAIL");
         let reference = [1.00000000, 0.00000000, 0.00000000];
         pix_cmp(&[pix], &[reference], 1e-3, &[]);
     }
