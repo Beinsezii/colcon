@@ -29,28 +29,16 @@ enum Cmp {
     Le,
 }
 
-trait DType:
-    Sized
-    + Copy
-    + Add<Output = Self>
-    + Div<Output = Self>
-    + Mul<Output = Self>
-    + Sub<Output = Self>
-    + Rem<Output = Self>
+trait DT:
+    Sized + Copy + Add<Output = Self> + Div<Output = Self> + Mul<Output = Self> + Sub<Output = Self> + Rem<Output = Self>
 {
     fn f32(b: f32) -> Self;
     fn fma(self, mul: Self, add: Self) -> Self;
     fn powf(self, b: Self) -> Self;
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
-        self,
-        b: Self,
-        cmp: Cmp,
-        x: F,
-        y: G,
-    ) -> Self;
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self;
 }
 
-impl DType for f32 {
+impl DT for f32 {
     fn f32(b: f32) -> Self {
         b
     }
@@ -63,13 +51,7 @@ impl DType for f32 {
         self.powf(b)
     }
 
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
-        self,
-        b: Self,
-        cmp: Cmp,
-        x: F,
-        y: G,
-    ) -> Self {
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self {
         if match cmp {
             Cmp::Gt => self > b,
             Cmp::Lt => self < b,
@@ -83,7 +65,7 @@ impl DType for f32 {
     }
 }
 
-impl DType for f64 {
+impl DT for f64 {
     fn f32(b: f32) -> Self {
         b.into()
     }
@@ -96,13 +78,7 @@ impl DType for f64 {
         self.powf(b)
     }
 
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
-        self,
-        b: Self,
-        cmp: Cmp,
-        x: F,
-        y: G,
-    ) -> Self {
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self {
         if match cmp {
             Cmp::Gt => self > b,
             Cmp::Lt => self < b,
@@ -117,7 +93,7 @@ impl DType for f64 {
 }
 
 #[cfg(feature = "nightly")]
-impl<const N: usize> DType for Simd<f32, N>
+impl<const N: usize> DT for Simd<f32, N>
 where
     LaneCount<N>: SupportedLaneCount,
 {
@@ -137,13 +113,7 @@ where
         self
     }
 
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(
-        self,
-        b: Self,
-        cmp: Cmp,
-        x: F,
-        y: G,
-    ) -> Self {
+    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self {
         match cmp {
             Cmp::Gt => self.simd_gt(b),
             Cmp::Lt => self.simd_lt(b),
@@ -152,6 +122,7 @@ where
         }
         .select(x(), y())
     }
+}
 
 /// Create an array of separate channel buffers from a single interwoven buffer.
 /// Copies the data.
@@ -307,6 +278,7 @@ const ICTCP_M2_INV: [[f32; 3]; 3] = [
     [1., -0.008609037, -0.111029625],
     [1., 0.5600313357, -0.320627175],
 ];
+
 /// 3 * 3x3 Matrix multiply with vector transposed, ie pixel @ matrix
 fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
     [
@@ -317,11 +289,11 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 }
 
 /// Transposed 3 * 3x3 matrix multiply, ie matrix @ pixel
-fn matmul3<T: DType>(matrix: [[f32; 3]; 3], pixel: [T; 3]) -> [T; 3] {
+fn matmul3<T: DT>(m: [[f32; 3]; 3], p: [T; 3]) -> [T; 3] {
     [
-        pixel[0].fma(DType::f32(matrix[0][0]), pixel[1].fma(DType::f32(matrix[0][1]), pixel[2] * DType::f32(matrix[0][2]))),
-        pixel[0].fma(DType::f32(matrix[1][0]), pixel[1].fma(DType::f32(matrix[1][1]), pixel[2] * DType::f32(matrix[1][2]))),
-        pixel[0].fma(DType::f32(matrix[2][0]), pixel[1].fma(DType::f32(matrix[2][1]), pixel[2] * DType::f32(matrix[2][2]))),
+        p[0].fma(DT::f32(m[0][0]), p[1].fma(DT::f32(m[0][1]), p[2] * DT::f32(m[0][2]))),
+        p[0].fma(DT::f32(m[1][0]), p[1].fma(DT::f32(m[1][1]), p[2] * DT::f32(m[1][2]))),
+        p[0].fma(DT::f32(m[2][0]), p[1].fma(DT::f32(m[2][1]), p[2] * DT::f32(m[2][2]))),
     ]
 }
 // ### MATRICES ### }}}
@@ -340,15 +312,12 @@ fn matmul3<T: DType>(matrix: [[f32; 3]; 3], pixel: [T; 3]) -> [T; 3] {
 //    }
 //}
 
-pub fn srgb_eotf<T: DType>(n: T) -> T {
+pub fn srgb_eotf<T: DT>(n: T) -> T {
     n.branch(
-        DType::f32(SRGBEOTF_CHI),
+        DT::f32(SRGBEOTF_CHI),
         Cmp::Le,
-        || n / DType::f32(SRGBEOTF_PHI),
-        || {
-            ((n + DType::f32(SRGBEOTF_ALPHA)) / DType::f32(SRGBEOTF_ALPHA + 1.0))
-                .powf(DType::f32(SRGBEOTF_GAMMA))
-        },
+        || n / DT::f32(SRGBEOTF_PHI),
+        || ((n + DT::f32(SRGBEOTF_ALPHA)) / DT::f32(SRGBEOTF_ALPHA + 1.0)).powf(DT::f32(SRGBEOTF_GAMMA)),
     )
 }
 
@@ -1062,7 +1031,7 @@ pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
+pub fn lrgb_to_xyz<T: DT>(pixel: &mut [T; 3]) {
     *pixel = matmul3(XYZ65_MAT, *pixel)
 }
 
