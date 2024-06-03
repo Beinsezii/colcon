@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "nightly", feature(portable_simd))]
+#![cfg_attr(feature = "nightly", feature(slice_as_chunks))]
 #![warn(missing_docs)]
 
 //! Simple colorspace conversions in pure Rust.
@@ -131,6 +132,41 @@ where
         }
         .select(x(), y())
     }
+}
+
+#[cfg(feature = "nightly")]
+/// Create an array of separate channel buffers from a single interwoven buffer.
+/// Copies the data.
+pub fn unweave_simd<'a, const C: usize, const L: usize>(slice: &[f32]) -> [(Box<[f32]>, Box<[Simd<f32, L>]>); C]
+where
+    LaneCount<L>: SupportedLaneCount,
+{
+    let len = slice.len() / (C * L);
+    let mut result: [Vec<Simd<f32, L>>; C] = (0..C)
+        .map(|_| Vec::with_capacity(len))
+        .collect::<Vec<Vec<_>>>()
+        .try_into()
+        .unwrap();
+
+    //let chunks = slice.as_chunks::<C>();
+    //for chunk in chunks.0.
+    //let mut remainders: [Box<[f32]>; C] = [Box::new([]), Box::new([]), Box::new([])];
+    for chunk in slice.chunks(C * L) {
+        if chunk.len() == C * L {
+            for c in 0..C {
+                result[c].push(Simd::from_slice(
+                    &(0..L).map(|l| chunk[c + l * c]).collect::<Vec<f32>>(),
+                ));
+            }
+        }
+    }
+
+    result
+        .into_iter()
+        .map(|v| (Vec::new().into_boxed_slice(), v.into_boxed_slice()))
+        .collect::<Vec<(Box<[f32]>, Box<[Simd<f32, L>]>)>>()
+        .try_into()
+        .unwrap()
 }
 
 /// Create an array of separate channel buffers from a single interwoven buffer.

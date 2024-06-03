@@ -27,7 +27,20 @@ pub fn conversions(c: &mut Criterion) {
     } ));
 
     c.bench_function("lrgb_to_xyz_simd", |b| b.iter(|| {
-        black_box(pixels.clone().as_simd_mut::<32>().1.chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_xyz(pixel.try_into().unwrap())));
+        black_box({
+            let mut pixels_simd = pixels.clone();
+            let mut unwoven = colcon::unweave_simd::<3, 8>(&pixels_simd);
+
+            let [mut rs, mut gs, mut bs] = unwoven;
+
+            for (r, (g, b)) in rs.1.iter_mut().zip(gs.1.iter_mut().zip(bs.1.iter_mut())) {
+                let mut arr = [*r, *g, *b];
+                colcon::lrgb_to_xyz(&mut arr);
+            }
+
+            //pixels_simd = colcon::weave(unwoven);
+
+        });
     } ));
 
     c.bench_function("xyz_to_cielab", |b| b.iter(|| {
