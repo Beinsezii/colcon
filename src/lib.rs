@@ -277,16 +277,6 @@ pub fn srgb_eotf<T: DType>(n: T) -> T {
     }
 }
 
-#[no_mangle]
-extern "C" fn srgb_eotf_f32(n: f32) -> f32 {
-    srgb_eotf(n)
-}
-
-#[no_mangle]
-extern "C" fn srgb_eotf_f64(n: f64) -> f64 {
-    srgb_eotf(n)
-}
-
 /// Inverse sRGB Electro-Optical Transfer Function
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
@@ -1001,16 +991,6 @@ pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
     *pixel = matmul3(XYZ65_MAT, *pixel)
 }
 
-#[no_mangle]
-extern "C" fn lrgb_to_xyz_f32(pixel: &mut [f32; 3]) {
-    lrgb_to_xyz(pixel)
-}
-
-#[no_mangle]
-extern "C" fn lrgb_to_xyz_f64(pixel: &mut [f64; 3]) {
-    lrgb_to_xyz(pixel)
-}
-
 /// Convert from CIE XYZ to CIE LAB.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
@@ -1287,6 +1267,36 @@ pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
 }
 
 // BACKWARD }}}
+
+macro_rules! cdef1 {
+    ($base:ident, $f32:ident, $f64:ident) => {
+        #[no_mangle]
+        extern "C" fn $f32(value: f32) -> f32 {
+            $base(value)
+        }
+        #[no_mangle]
+        extern "C" fn $f64(value: f64) -> f64 {
+            $base(value)
+        }
+    };
+}
+
+macro_rules! cdef3 {
+    ($base:ident, $f32:ident, $f64:ident) => {
+        #[no_mangle]
+        extern "C" fn $f32(pixel: &mut [f32; 3]) {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f64(pixel: &mut [f64; 3]) {
+            $base(pixel)
+        }
+    };
+}
+
+cdef1!(srgb_eotf, srgb_eotf_f32, srgb_eotf_f64);
+
+cdef3!(lrgb_to_xyz, lrgb_to_xyz_f32, lrgb_to_xyz_f64);
 
 // ### TESTS ### {{{
 #[cfg(test)]
