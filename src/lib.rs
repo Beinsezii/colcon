@@ -17,7 +17,38 @@ fn spowf(n: f32, power: f32) -> f32 {
     n.abs().powf(power).copysign(n)
 }
 
-trait DT:
+// DT {{{
+
+trait FromF32: Sized {
+    fn from_float(float: f32) -> Self;
+}
+
+impl FromF32 for f32 {
+    fn from_float(float: f32) -> Self {
+        float
+    }
+}
+
+impl FromF32 for f64 {
+    fn from_float(float: f32) -> Self {
+        float.into()
+    }
+}
+
+trait ToDType<T>: Sized {
+    fn to_dt(self) -> T;
+}
+
+impl<U> ToDType<U> for f32
+where
+    U: FromF32 + Sized,
+{
+    fn to_dt(self) -> U {
+        FromF32::from_float(self)
+    }
+}
+
+trait DType:
     Sized
     + Copy
     + Add<Output = Self>
@@ -26,7 +57,7 @@ trait DT:
     + Sub<Output = Self>
     + Rem<Output = Self>
     + PartialOrd
-    + From<f32>
+    + FromF32
 {
     fn _fma(self, mul: Self, add: Self) -> Self;
     fn powf(self, rhs: Self) -> Self;
@@ -43,7 +74,7 @@ trait DT:
 
 macro_rules! impl_float {
     ($type:ident) => {
-        impl DT for $type {
+        impl DType for $type {
             fn _fma(self, mul: Self, add: Self) -> Self {
                 self.mul_add(mul, add)
             }
@@ -56,6 +87,8 @@ macro_rules! impl_float {
 
 impl_float!(f32);
 impl_float!(f64);
+
+// }}}
 
 /// Create an array of separate channel buffers from a single interwoven buffer.
 /// Copies the data.
@@ -222,11 +255,11 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 }
 
 /// Transposed 3 * 3x3 matrix multiply, ie matrix @ pixel
-fn matmul3<T: DT>(m: [[f32; 3]; 3], p: [T; 3]) -> [T; 3] {
+fn matmul3<T: DType>(m: [[f32; 3]; 3], p: [T; 3]) -> [T; 3] {
     [
-        p[0].fma(m[0][0].into(), p[1].fma(m[0][1].into(), p[2] * m[0][2].into())),
-        p[0].fma(m[1][0].into(), p[1].fma(m[1][1].into(), p[2] * m[1][2].into())),
-        p[0].fma(m[2][0].into(), p[1].fma(m[2][1].into(), p[2] * m[2][2].into())),
+        p[0].fma(m[0][0].to_dt(), p[1].fma(m[0][1].to_dt(), p[2] * m[0][2].to_dt())),
+        p[0].fma(m[1][0].to_dt(), p[1].fma(m[1][1].to_dt(), p[2] * m[1][2].to_dt())),
+        p[0].fma(m[2][0].to_dt(), p[1].fma(m[2][1].to_dt(), p[2] * m[2][2].to_dt())),
     ]
 }
 // ### MATRICES ### }}}
@@ -236,11 +269,11 @@ fn matmul3<T: DT>(m: [[f32; 3]; 3], p: [T; 3]) -> [T; 3] {
 /// sRGB Electro-Optical Transfer Function
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
-pub fn srgb_eotf<T: DT>(n: T) -> T {
-    if n <= SRGBEOTF_CHI.into() {
-        n / SRGBEOTF_PHI.into()
+pub fn srgb_eotf<T: DType>(n: T) -> T {
+    if n <= SRGBEOTF_CHI.to_dt() {
+        n / SRGBEOTF_PHI.to_dt()
     } else {
-        ((n + SRGBEOTF_ALPHA.into()) / (SRGBEOTF_ALPHA + 1.0).into()).powf(SRGBEOTF_GAMMA.into())
+        ((n + SRGBEOTF_ALPHA.to_dt()) / (SRGBEOTF_ALPHA + 1.0).to_dt()).powf(SRGBEOTF_GAMMA.to_dt())
     }
 }
 
@@ -964,7 +997,7 @@ pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-pub fn lrgb_to_xyz<T: DT>(pixel: &mut [T; 3]) {
+pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
     *pixel = matmul3(XYZ65_MAT, *pixel)
 }
 
