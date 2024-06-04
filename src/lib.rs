@@ -1,5 +1,4 @@
-#![cfg_attr(feature = "nightly", feature(portable_simd))]
-#![cfg_attr(feature = "nightly", feature(slice_as_chunks))]
+#![allow(private_bounds)]
 #![warn(missing_docs)]
 
 //! Simple colorspace conversions in pure Rust.
@@ -10,33 +9,27 @@
 //!
 //! This crate references CIE Standard Illuminant D65 for functions to/from CIE XYZ
 
+use core::cmp::PartialOrd;
 use core::ffi::{c_char, CStr};
 use core::ops::{Add, Div, Mul, Rem, Sub};
-
-#[cfg(feature = "nightly")]
-use std::simd::prelude::*;
-
-#[cfg(feature = "nightly")]
-use std::simd::{LaneCount, StdFloat, SupportedLaneCount};
 
 fn spowf(n: f32, power: f32) -> f32 {
     n.abs().powf(power).copysign(n)
 }
 
-enum Cmp {
-    Gt,
-    Lt,
-    Ge,
-    Le,
-}
-
 trait DT:
-    Sized + Copy + Add<Output = Self> + Div<Output = Self> + Mul<Output = Self> + Sub<Output = Self> + Rem<Output = Self>
+    Sized
+    + Copy
+    + Add<Output = Self>
+    + Div<Output = Self>
+    + Mul<Output = Self>
+    + Sub<Output = Self>
+    + Rem<Output = Self>
+    + PartialOrd
+    + From<f32>
 {
-    fn f32(b: f32) -> Self;
     fn _fma(self, mul: Self, add: Self) -> Self;
-    fn powf(self, b: Self) -> Self;
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self;
+    fn powf(self, rhs: Self) -> Self;
 
     fn fma(self, mul: Self, add: Self) -> Self {
         // other non-x86 names?
@@ -48,126 +41,21 @@ trait DT:
     }
 }
 
-impl DT for f32 {
-    fn f32(b: f32) -> Self {
-        b
-    }
-
-    fn _fma(self, mul: Self, add: Self) -> Self {
-        self.mul_add(mul, add)
-    }
-
-    fn powf(self, b: Self) -> Self {
-        self.powf(b)
-    }
-
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self {
-        if match cmp {
-            Cmp::Gt => self > b,
-            Cmp::Lt => self < b,
-            Cmp::Ge => self >= b,
-            Cmp::Le => self <= b,
-        } {
-            x()
-        } else {
-            y()
-        }
-    }
-}
-
-impl DT for f64 {
-    fn f32(b: f32) -> Self {
-        b.into()
-    }
-
-    fn _fma(self, mul: Self, add: Self) -> Self {
-        self.mul_add(mul, add)
-    }
-
-    fn powf(self, b: Self) -> Self {
-        self.powf(b)
-    }
-
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self {
-        if match cmp {
-            Cmp::Gt => self > b,
-            Cmp::Lt => self < b,
-            Cmp::Ge => self >= b,
-            Cmp::Le => self <= b,
-        } {
-            x()
-        } else {
-            y()
-        }
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl<const N: usize> DT for Simd<f32, N>
-where
-    LaneCount<N>: SupportedLaneCount,
-{
-    fn f32(object: f32) -> Self {
-        Self::splat(object)
-    }
-
-    fn _fma(self, mul: Self, add: Self) -> Self {
-        self.mul_add(mul, add)
-    }
-
-    fn powf(mut self, b: Self) -> Self {
-        self.as_mut_array()
-            .iter_mut()
-            .zip(b.as_array().iter())
-            .for_each(|(a, b)| *a = a.powf(*b));
-        self
-    }
-
-    fn branch<F: FnOnce() -> Self, G: FnOnce() -> Self>(self, b: Self, cmp: Cmp, x: F, y: G) -> Self {
-        match cmp {
-            Cmp::Gt => self.simd_gt(b),
-            Cmp::Lt => self.simd_lt(b),
-            Cmp::Ge => self.simd_ge(b),
-            Cmp::Le => self.simd_le(b),
-        }
-        .select(x(), y())
-    }
-}
-
-#[cfg(feature = "nightly")]
-/// Create an array of separate channel buffers from a single interwoven buffer.
-/// Copies the data.
-pub fn unweave_simd<'a, const C: usize, const L: usize>(slice: &[f32]) -> [(Box<[f32]>, Box<[Simd<f32, L>]>); C]
-where
-    LaneCount<L>: SupportedLaneCount,
-{
-    let len = slice.len() / (C * L);
-    let mut result: [Vec<Simd<f32, L>>; C] = (0..C)
-        .map(|_| Vec::with_capacity(len))
-        .collect::<Vec<Vec<_>>>()
-        .try_into()
-        .unwrap();
-
-    //let chunks = slice.as_chunks::<C>();
-    //for chunk in chunks.0.
-    //let mut remainders: [Box<[f32]>; C] = [Box::new([]), Box::new([]), Box::new([])];
-    for chunk in slice.chunks(C * L) {
-        if chunk.len() == C * L {
-            for c in 0..C {
-                result[c].push(Simd::from_slice(
-                    &(0..L).map(|l| chunk[c + l * c]).collect::<Vec<f32>>(),
-                ));
+macro_rules! impl_float {
+    ($type:ident) => {
+        impl DT for $type {
+            fn _fma(self, mul: Self, add: Self) -> Self {
+                self.mul_add(mul, add)
+            }
+            fn powf(self, rhs: Self) -> Self {
+                self.powf(rhs)
             }
         }
-    }
-
-    result
-        .into_iter()
-        .map(|v| (Vec::new().into_boxed_slice(), v.into_boxed_slice()))
-        .collect::<Vec<(Box<[f32]>, Box<[Simd<f32, L>]>)>>()
-        .try_into()
-        .unwrap()
+    };
 }
+
+impl_float!(f32);
+impl_float!(f64);
 
 /// Create an array of separate channel buffers from a single interwoven buffer.
 /// Copies the data.
@@ -336,9 +224,9 @@ fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
 /// Transposed 3 * 3x3 matrix multiply, ie matrix @ pixel
 fn matmul3<T: DT>(m: [[f32; 3]; 3], p: [T; 3]) -> [T; 3] {
     [
-        p[0].fma(DT::f32(m[0][0]), p[1].fma(DT::f32(m[0][1]), p[2] * DT::f32(m[0][2]))),
-        p[0].fma(DT::f32(m[1][0]), p[1].fma(DT::f32(m[1][1]), p[2] * DT::f32(m[1][2]))),
-        p[0].fma(DT::f32(m[2][0]), p[1].fma(DT::f32(m[2][1]), p[2] * DT::f32(m[2][2]))),
+        p[0].fma(m[0][0].into(), p[1].fma(m[0][1].into(), p[2] * m[0][2].into())),
+        p[0].fma(m[1][0].into(), p[1].fma(m[1][1].into(), p[2] * m[1][2].into())),
+        p[0].fma(m[2][0].into(), p[1].fma(m[2][1].into(), p[2] * m[2][2].into())),
     ]
 }
 // ### MATRICES ### }}}
@@ -348,22 +236,22 @@ fn matmul3<T: DT>(m: [[f32; 3]; 3], p: [T; 3]) -> [T; 3] {
 /// sRGB Electro-Optical Transfer Function
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
-//#[no_mangle]
-//pub fn srgb_eotf<T: DType>(n: T) -> T {
-//    if n <= SRGBEOTF_CHI {
-//        n / SRGBEOTF_PHI
-//    } else {
-//        ((n + SRGBEOTF_ALPHA) / (SRGBEOTF_ALPHA + 1.0)).powf(SRGBEOTF_GAMMA)
-//    }
-//}
-
 pub fn srgb_eotf<T: DT>(n: T) -> T {
-    n.branch(
-        DT::f32(SRGBEOTF_CHI),
-        Cmp::Le,
-        || n / DT::f32(SRGBEOTF_PHI),
-        || ((n + DT::f32(SRGBEOTF_ALPHA)) / DT::f32(SRGBEOTF_ALPHA + 1.0)).powf(DT::f32(SRGBEOTF_GAMMA)),
-    )
+    if n <= SRGBEOTF_CHI.into() {
+        n / SRGBEOTF_PHI.into()
+    } else {
+        ((n + SRGBEOTF_ALPHA.into()) / (SRGBEOTF_ALPHA + 1.0).into()).powf(SRGBEOTF_GAMMA.into())
+    }
+}
+
+#[no_mangle]
+extern "C" fn srgb_eotf_f32(n: f32) -> f32 {
+    srgb_eotf(n)
+}
+
+#[no_mangle]
+extern "C" fn srgb_eotf_f64(n: f64) -> f64 {
+    srgb_eotf(n)
 }
 
 /// Inverse sRGB Electro-Optical Transfer Function
@@ -1082,6 +970,11 @@ pub fn lrgb_to_xyz<T: DT>(pixel: &mut [T; 3]) {
 
 #[no_mangle]
 extern "C" fn lrgb_to_xyz_f32(pixel: &mut [f32; 3]) {
+    lrgb_to_xyz(pixel)
+}
+
+#[no_mangle]
+extern "C" fn lrgb_to_xyz_f64(pixel: &mut [f64; 3]) {
     lrgb_to_xyz(pixel)
 }
 

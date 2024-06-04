@@ -19,8 +19,8 @@ colcon.convert_space_ffi.restype = ctypes.c_int32
 # up
 colcon.srgb_to_hsv.argtypes = [cpixel]
 colcon.srgb_to_lrgb.argtypes = [cpixel]
-colcon.lrgb_to_xyz.argtypes = [cpixel]
-colcon.xyz_to_lab.argtypes = [cpixel]
+colcon.lrgb_to_xyz_f32.argtypes = [cpixel]
+colcon.xyz_to_cielab.argtypes = [cpixel]
 colcon.xyz_to_oklab.argtypes = [cpixel]
 colcon.xyz_to_jzazbz.argtypes = [cpixel]
 colcon.lab_to_lch.argtypes = [cpixel]
@@ -29,14 +29,14 @@ colcon.lab_to_lch.argtypes = [cpixel]
 colcon.lch_to_lab.argtypes = [cpixel]
 colcon.jzazbz_to_xyz.argtypes = [cpixel]
 colcon.oklab_to_xyz.argtypes = [cpixel]
-colcon.lab_to_xyz.argtypes = [cpixel]
+colcon.cielab_to_xyz.argtypes = [cpixel]
 colcon.xyz_to_lrgb.argtypes = [cpixel]
 colcon.lrgb_to_srgb.argtypes = [cpixel]
 colcon.srgb_to_hsv.argtypes = [cpixel]
 
 # extra
-colcon.srgb_eotf.argtypes = [ctypes.c_float]
-colcon.srgb_eotf.restype = ctypes.c_float
+colcon.srgb_eotf_f32.argtypes = [ctypes.c_float]
+colcon.srgb_eotf_f32.restype = ctypes.c_float
 colcon.srgb_eotf_inverse.argtypes = [ctypes.c_float]
 colcon.srgb_eotf_inverse.restype = ctypes.c_float
 colcon.hk_high2023.argtypes = [cpixel]
@@ -68,11 +68,11 @@ colcon.srgb_to_lrgb(pix)
 pixcmp(list(pix), LRGB)
 
 pix = cpixel(*LRGB)
-colcon.lrgb_to_xyz(pix)
+colcon.lrgb_to_xyz_f32(pix)
 pixcmp(list(pix), XYZ)
 
 pix = cpixel(*XYZ)
-colcon.xyz_to_lab(pix)
+colcon.xyz_to_cielab(pix)
 pixcmp(list(pix), LAB)
 
 pix = cpixel(*XYZ)
@@ -93,7 +93,7 @@ colcon.lch_to_lab(pix)
 pixcmp(list(pix), LAB)
 
 pix = cpixel(*LAB)
-colcon.lab_to_xyz(pix)
+colcon.cielab_to_xyz(pix)
 pixcmp(list(pix), XYZ)
 
 pix = cpixel(*JZAZBZ)

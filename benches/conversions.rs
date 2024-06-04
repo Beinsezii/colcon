@@ -1,7 +1,5 @@
-#![feature(portable_simd)]
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use colcon::{Space, convert_space};
-//use std::simd::prelude::*;
 
 fn pixels() -> Box<[f32]> {
     let size = 512;
@@ -24,23 +22,6 @@ pub fn conversions(c: &mut Criterion) {
 
     c.bench_function("lrgb_to_xyz", |b| b.iter(|| {
         black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_xyz(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("lrgb_to_xyz_simd", |b| b.iter(|| {
-        black_box({
-            let mut pixels_simd = pixels.clone();
-            let mut unwoven = colcon::unweave_simd::<3, 8>(&pixels_simd);
-
-            let [mut rs, mut gs, mut bs] = unwoven;
-
-            for (r, (g, b)) in rs.1.iter_mut().zip(gs.1.iter_mut().zip(bs.1.iter_mut())) {
-                let mut arr = [*r, *g, *b];
-                colcon::lrgb_to_xyz(&mut arr);
-            }
-
-            //pixels_simd = colcon::weave(unwoven);
-
-        });
     } ));
 
     c.bench_function("xyz_to_cielab", |b| b.iter(|| {
@@ -93,10 +74,6 @@ pub fn conversions(c: &mut Criterion) {
 
     c.bench_function("srgb_eotf", |b| b.iter(|| {
         black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf(*n)));
-    } ));
-
-    c.bench_function("srgb_eotf_simd", |b| b.iter(|| {
-        black_box(pixels.clone().as_simd_mut::<32>().1.iter_mut().for_each(|n| *n = colcon::srgb_eotf(*n)));
     } ));
 
     c.bench_function("srgb_eotf_inverse", |b| b.iter(|| {
