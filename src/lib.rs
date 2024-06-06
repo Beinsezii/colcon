@@ -1,4 +1,3 @@
-#![allow(private_bounds)]
 #![warn(missing_docs)]
 
 //! Simple colorspace conversions in pure Rust.
@@ -13,25 +12,23 @@ use core::cmp::PartialOrd;
 use core::ffi::{c_char, CStr};
 use core::ops::{Add, Div, Mul, Rem, Sub};
 
-fn spowf(n: f32, power: f32) -> f32 {
-    n.abs().powf(power).copysign(n)
-}
-
 // DT {{{
 
-trait FromF32: Sized {
-    fn from_float(float: f32) -> Self;
+#[allow(missing_docs)]
+/// Convert an F32 ito any supported DType
+pub trait FromF32: Sized {
+    fn ff32(f: f32) -> Self;
 }
 
 impl FromF32 for f32 {
-    fn from_float(float: f32) -> Self {
-        float
+    fn ff32(f: f32) -> Self {
+        f
     }
 }
 
 impl FromF32 for f64 {
-    fn from_float(float: f32) -> Self {
-        float.into()
+    fn ff32(f: f32) -> Self {
+        f.into()
     }
 }
 
@@ -44,11 +41,13 @@ where
     U: FromF32 + Sized,
 {
     fn to_dt(self) -> U {
-        FromF32::from_float(self)
+        FromF32::ff32(self)
     }
 }
 
-trait DType:
+#[allow(missing_docs)]
+/// Trait for all supported data types in colcon
+pub trait DType:
     Sized
     + Copy
     + Add<Output = Self>
@@ -59,9 +58,21 @@ trait DType:
     + PartialOrd
     + FromF32
 {
-    fn _fma(self, mul: Self, add: Self) -> Self;
     fn powf(self, rhs: Self) -> Self;
+    /// Sign-agnostic powf
+    fn spowf(self, rhs: Self) -> Self;
 
+    fn abs(self) -> Self;
+    fn max(self, other: Self) -> Self;
+    fn min(self, other: Self) -> Self;
+
+    fn sin(self) -> Self;
+    fn cos(self) -> Self;
+    fn to_degrees(self) -> Self;
+    fn to_radians(self) -> Self;
+
+    fn _fma(self, mul: Self, add: Self) -> Self;
+    /// Fused multiply-add if "fma" is enabled in rustc
     fn fma(self, mul: Self, add: Self) -> Self {
         // other non-x86 names?
         if cfg!(target_feature = "fma") {
@@ -75,11 +86,35 @@ trait DType:
 macro_rules! impl_float {
     ($type:ident) => {
         impl DType for $type {
-            fn _fma(self, mul: Self, add: Self) -> Self {
-                self.mul_add(mul, add)
-            }
             fn powf(self, rhs: Self) -> Self {
                 self.powf(rhs)
+            }
+            fn spowf(self, rhs: Self) -> Self {
+                self.abs().powf(rhs).copysign(self)
+            }
+            fn abs(self) -> Self {
+                self.abs()
+            }
+            fn max(self, other: Self) -> Self {
+                self.max(other)
+            }
+            fn min(self, other: Self) -> Self {
+                self.max(other)
+            }
+            fn sin(self) -> Self {
+                self.sin()
+            }
+            fn cos(self) -> Self {
+                self.cos()
+            }
+            fn to_degrees(self) -> Self {
+                self.to_degrees()
+            }
+            fn to_radians(self) -> Self {
+                self.to_radians()
+            }
+            fn _fma(self, mul: Self, add: Self) -> Self {
+                self.mul_add(mul, add)
             }
         }
     };
@@ -246,11 +281,11 @@ const ICTCP_M2_INV: [[f32; 3]; 3] = [
 ];
 
 /// 3 * 3x3 Matrix multiply with vector transposed, ie pixel @ matrix
-fn matmul3t(pixel: [f32; 3], matrix: [[f32; 3]; 3]) -> [f32; 3] {
+fn matmul3t<T: DType>(p: [T; 3], m: [[f32; 3]; 3]) -> [T; 3] {
     [
-        pixel[0] * matrix[0][0] + pixel[1] * matrix[1][0] + pixel[2] * matrix[2][0],
-        pixel[0] * matrix[0][1] + pixel[1] * matrix[1][1] + pixel[2] * matrix[2][1],
-        pixel[0] * matrix[0][2] + pixel[1] * matrix[1][2] + pixel[2] * matrix[2][2],
+        p[0].fma(m[0][0].to_dt(), p[1].fma(m[1][0].to_dt(), p[2] * m[2][0].to_dt())),
+        p[0].fma(m[0][1].to_dt(), p[1].fma(m[1][1].to_dt(), p[2] * m[2][1].to_dt())),
+        p[0].fma(m[0][2].to_dt(), p[1].fma(m[1][2].to_dt(), p[2] * m[2][2].to_dt())),
     ]
 }
 
@@ -280,47 +315,49 @@ pub fn srgb_eotf<T: DType>(n: T) -> T {
 /// Inverse sRGB Electro-Optical Transfer Function
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
-#[no_mangle]
-pub extern "C" fn srgb_eotf_inverse(n: f32) -> f32 {
-    if n <= SRGBEOTF_CHI_INV {
-        n * SRGBEOTF_PHI
+pub fn srgb_eotf_inverse<T: DType>(n: T) -> T {
+    if n <= SRGBEOTF_CHI_INV.to_dt() {
+        n * SRGBEOTF_PHI.to_dt()
     } else {
-        (1.0 + SRGBEOTF_ALPHA) * (n.powf(1.0 / SRGBEOTF_GAMMA)) - SRGBEOTF_ALPHA
+        (n.powf((1.0 / SRGBEOTF_GAMMA).to_dt())).fma((1.0 + SRGBEOTF_ALPHA).to_dt(), (-SRGBEOTF_ALPHA).to_dt())
     }
 }
 
 // <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
-fn pq_eotf_common(e: f32, m2: f32) -> f32 {
-    let y = spowf(
-        (spowf(e, 1.0 / m2) - PQEOTF_C1).max(0.0) / (PQEOTF_C2 - PQEOTF_C3 * spowf(e, 1.0 / m2)),
-        1.0 / PQEOTF_M1,
-    );
-    10000.0 * y
+fn pq_eotf_common<T: DType>(e: T, m2: T) -> T {
+    let ep_pow_1divm2 = e.spowf(T::ff32(1.0) / m2);
+
+    let numerator: T = (ep_pow_1divm2 - PQEOTF_C1.to_dt()).max(0.0.to_dt());
+    let denominator: T = T::ff32(PQEOTF_C2) - T::ff32(PQEOTF_C3) * ep_pow_1divm2;
+
+    let y = (numerator / denominator).spowf((1.0 / PQEOTF_M1).to_dt());
+
+    y * 10000.0.to_dt()
 }
 
 // <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
-fn pq_oetf_common(f: f32, m2: f32) -> f32 {
-    let y = f / 10000.0;
-    spowf(
-        (PQEOTF_C1 + PQEOTF_C2 * spowf(y, PQEOTF_M1)) / (1.0 + PQEOTF_C3 * spowf(y, PQEOTF_M1)),
-        m2,
-    )
+fn pq_oetf_common<T: DType>(f: T, m2: T) -> T {
+    let y = f / 10000.0.to_dt();
+    let y_pow_m1 = y.spowf(PQEOTF_M1.to_dt());
+
+    let numerator: T = T::ff32(PQEOTF_C2).fma(y_pow_m1, PQEOTF_C1.to_dt());
+    let denominator: T = T::ff32(PQEOTF_C3).fma(y_pow_m1, 1.0.to_dt());
+
+    (numerator / denominator).powf(m2)
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function primarily used for ICtCP
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
-#[no_mangle]
-pub extern "C" fn pq_eotf(e: f32) -> f32 {
-    pq_eotf_common(e, PQEOTF_M2)
+pub fn pq_eotf<T: DType>(e: T) -> T {
+    pq_eotf_common(e, PQEOTF_M2.to_dt())
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function primarily used for ICtCP
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
-#[no_mangle]
-pub extern "C" fn pq_oetf(f: f32) -> f32 {
-    pq_oetf_common(f, PQEOTF_M2)
+pub fn pq_oetf<T: DType>(f: T) -> T {
+    pq_oetf_common(f, PQEOTF_M2.to_dt())
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function modified for JzAzBz
@@ -328,9 +365,8 @@ pub extern "C" fn pq_oetf(f: f32) -> f32 {
 /// Replaced PQEOTF_M2 with JZAZBZ_P
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ EOTF"
-#[no_mangle]
-pub extern "C" fn pqz_eotf(e: f32) -> f32 {
-    pq_eotf_common(e, JZAZBZ_P)
+pub fn pqz_eotf<T: DType>(e: T) -> T {
+    pq_eotf_common(e, JZAZBZ_P.to_dt())
 }
 
 /// Dolby Perceptual Quantizer Optical-Electro Transfer Function modified for JzAzBz
@@ -338,9 +374,8 @@ pub extern "C" fn pqz_eotf(e: f32) -> f32 {
 /// Replaced PQEOTF_M2 with JZAZBZ_P
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en> Table 4 "Reference PQ OETF"
-#[no_mangle]
-pub extern "C" fn pqz_oetf(f: f32) -> f32 {
-    pq_oetf_common(f, JZAZBZ_P)
+pub fn pqz_oetf<T: DType>(f: T) -> T {
+    pq_oetf_common(f, JZAZBZ_P.to_dt())
 }
 
 // ### TRANSFER FUNCTIONS ### }}}
@@ -356,30 +391,27 @@ const K_HIGH2022: [f32; 4] = [0.1644, 0.0603, 0.1307, 0.0060];
 /// Cannot make a const fn: <https://github.com/rust-lang/rust/issues/57241>
 pub const HIGH2023_MEAN: f32 = 20.956442;
 
-fn hk_2023_fby(h: f32) -> f32 {
-    K_HIGH2022[0] * ((h - 90.0) / 2.0).to_radians().sin().abs() + K_HIGH2022[1]
-}
-
-fn hk_2023_fr(h: f32) -> f32 {
-    if h <= 90.0 || h >= 270.0 {
-        K_HIGH2022[2] * h.to_radians().cos().abs() + K_HIGH2022[3]
-    } else {
-        0.0
-    }
-}
-
 /// Returns difference in perceptual lightness based on hue, aka the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-#[no_mangle]
-pub extern "C" fn hk_high2023(lch: &[f32; 3]) -> f32 {
-    (hk_2023_fby(lch[2]) + hk_2023_fr(lch[2])) * lch[1]
+pub fn hk_high2023<T: DType>(lch: &[T; 3]) -> T {
+    let fby: T = T::ff32(K_HIGH2022[0]).fma(
+        ((lch[2] - 90.0.to_dt()) / 2.0.to_dt()).to_radians().sin().abs(),
+        K_HIGH2022[1].to_dt(),
+    );
+
+    let fr: T = if lch[2] <= 90.0.to_dt() || lch[2] >= 270.0.to_dt() {
+        T::ff32(K_HIGH2022[2]).fma(lch[2].to_radians().cos().abs(), K_HIGH2022[3].to_dt())
+    } else {
+        0.0.to_dt()
+    };
+
+    (fby + fr) * lch[1]
 }
 
 /// Compensates CIE LCH's L value for the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-#[no_mangle]
-pub extern "C" fn hk_high2023_comp(lch: &mut [f32; 3]) {
-    lch[0] += (HIGH2023_MEAN - hk_high2023(lch)) * (lch[1] / 100.0)
+pub fn hk_high2023_comp<T: DType>(lch: &mut [T; 3]) {
+    lch[0] = lch[0] + (T::ff32(HIGH2023_MEAN) - hk_high2023(lch)) * (lch[1] / 100.0.to_dt())
 }
 
 // ### Helmholtz-Kohlrausch ### }}}
