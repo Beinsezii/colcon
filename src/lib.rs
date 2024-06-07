@@ -340,7 +340,7 @@ pub fn srgb_eotf<T: DType>(n: T) -> T {
 /// Inverse sRGB Electro-Optical Transfer Function
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#Computing_the_transfer_function>
-pub fn srgb_eotf_inverse<T: DType>(n: T) -> T {
+pub fn srgb_oetf<T: DType>(n: T) -> T {
     if n <= SRGBEOTF_CHI_INV.to_dt() {
         n * SRGBEOTF_PHI.to_dt()
     } else {
@@ -1218,7 +1218,7 @@ pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
 pub fn lrgb_to_srgb<T: DType>(pixel: &mut [T; 3]) {
-    pixel.iter_mut().for_each(|c| *c = srgb_eotf_inverse(*c));
+    pixel.iter_mut().for_each(|c| *c = srgb_oetf(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
@@ -1338,7 +1338,30 @@ macro_rules! cdef3 {
     };
 }
 
+macro_rules! cdef31 {
+    ($base:ident, $f32:ident, $f64:ident) => {
+        #[no_mangle]
+        extern "C" fn $f32(pixel: &[f32; 3]) -> f32 {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f64(pixel: &[f64; 3]) -> f64 {
+            $base(pixel)
+        }
+    };
+}
+
+// Transfer Functions
 cdef1!(srgb_eotf, srgb_eotf_f32, srgb_eotf_f64);
+cdef1!(srgb_oetf, srgb_oetf_f32, srgb_oetf_f64);
+cdef1!(pq_eotf, pq_eotf_f32, pq_eotf_f64);
+cdef1!(pqz_eotf, pqz_eotf_f32, pqz_eotf_f64);
+cdef1!(pq_oetf, pq_oetf_f32, pq_oetf_f64);
+cdef1!(pqz_oetf, pqz_oetf_f32, pqz_oetf_f64);
+
+// Helmholtz-Kohlrausch
+cdef31!(hk_high2023, hk_high2023_f32, hk_high2023_f64);
+cdef3!(hk_high2023_comp, hk_high2023_comp_f32, hk_high2023_comp_f64);
 
 // Forward
 cdef3!(srgb_to_hsv, srgb_to_hsv_f32, srgb_to_hsv_f64);
