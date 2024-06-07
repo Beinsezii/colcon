@@ -15,7 +15,7 @@ use core::cmp::PartialOrd;
 use core::ffi::{c_char, CStr};
 use core::ops::{Add, Div, Mul, Rem, Sub};
 
-// DT {{{
+// DType {{{
 
 #[allow(missing_docs)]
 /// Convert an F32 ito any supported DType
@@ -1315,6 +1315,8 @@ pub fn lch_to_lab<T: DType>(pixel: &mut [T; 3]) {
 
 // BACKWARD }}}
 
+// ### MONOTYPED EXTERNAL FUNCTIONS ### {{{
+
 macro_rules! cdef1 {
     ($base:ident, $f32:ident, $f64:ident) => {
         #[no_mangle]
@@ -1383,3 +1385,5 @@ cdef3!(cielab_to_xyz, cielab_to_xyz_f32, cielab_to_xyz_f64);
 cdef3!(oklab_to_xyz, oklab_to_xyz_f32, oklab_to_xyz_f64);
 cdef3!(jzazbz_to_xyz, jzazbz_to_xyz_f32, jzazbz_to_xyz_f64);
 cdef3!(lch_to_lab, lch_to_lab_f32, lch_to_lab_f64);
+
+// }}}
