@@ -13,7 +13,7 @@ mod tests;
 
 use core::cmp::PartialOrd;
 use core::ffi::{c_char, CStr};
-use core::ops::{Add, Div, Mul, Rem, Sub};
+use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 // DType {{{
 
@@ -56,8 +56,9 @@ pub trait DType:
     + Add<Output = Self>
     + Div<Output = Self>
     + Mul<Output = Self>
-    + Sub<Output = Self>
+    + Neg<Output = Self>
     + Rem<Output = Self>
+    + Sub<Output = Self>
     + PartialOrd
     + FromF32
 {
@@ -356,7 +357,7 @@ fn pq_eotf_common<T: DType>(e: T, m2: T) -> T {
     let ep_pow_1divm2 = e.spowf(T::ff32(1.0) / m2);
 
     let numerator: T = (ep_pow_1divm2 - PQEOTF_C1.to_dt()).max(0.0.to_dt());
-    let denominator: T = T::ff32(PQEOTF_C2) - T::ff32(PQEOTF_C3) * ep_pow_1divm2;
+    let denominator: T = ep_pow_1divm2.fma(T::ff32(-PQEOTF_C3), PQEOTF_C2.to_dt());
 
     let y = (numerator / denominator).spowf((1.0 / PQEOTF_M1).to_dt());
 
@@ -1018,9 +1019,7 @@ pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
     } else {
         let s = dmax / vmax;
 
-        let dr = (((vmax - pixel[0]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
-        let dg = (((vmax - pixel[1]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
-        let db = (((vmax - pixel[2]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let [dr, dg, db] = pixel.map(|c| (((vmax - c) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax);
 
         let h = if pixel[0] == vmax {
             db - dg
@@ -1065,7 +1064,7 @@ pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
     });
 
     *pixel = [
-        (T::ff32(116.0) * pixel[1]) - 16.0.to_dt(),
+        T::ff32(116.0).fma(pixel[1], T::ff32(-16.0)),
         T::ff32(500.0) * (pixel[0] - pixel[1]),
         T::ff32(200.0) * (pixel[1] - pixel[2]),
     ]
@@ -1087,8 +1086,8 @@ pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
     let mut lms = matmul3(
         JZAZBZ_M1,
         [
-            pixel[0] * JZAZBZ_B.to_dt() - T::ff32(JZAZBZ_B - 1.0) * pixel[2],
-            pixel[1] * JZAZBZ_G.to_dt() - T::ff32(JZAZBZ_G - 1.0) * pixel[0],
+            pixel[0].fma(JZAZBZ_B.to_dt(), T::ff32(-JZAZBZ_B + 1.0) * pixel[2]),
+            pixel[1].fma(JZAZBZ_G.to_dt(), T::ff32(-JZAZBZ_G + 1.0) * pixel[0]),
             pixel[2],
         ],
     );
@@ -1198,8 +1197,8 @@ pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
         }
         let var_i = var_h.trunc();
         let var_1 = pixel[2] * (T::ff32(1.0) - pixel[1]);
-        let var_2 = pixel[2] * (T::ff32(1.0) - pixel[1] * (var_h - var_i));
-        let var_3 = pixel[2] * (T::ff32(1.0) - pixel[1] * (T::ff32(1.0) - (var_h - var_i)));
+        let var_2 = pixel[2] * (-var_h + var_i).fma(pixel[1], 1.0.to_dt());
+        let var_3 = pixel[2] * (T::ff32(-1.0) + (var_h - var_i)).fma(pixel[1], T::ff32(1.0));
 
         *pixel = if var_i == 0.0.to_dt() {
             [pixel[2], var_3, var_1]
@@ -1269,7 +1268,7 @@ pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
         JZAZBZ_M2_INV,
         [
             (pixel[0] + JZAZBZ_D0.to_dt())
-                / (T::ff32(1.0 + JZAZBZ_D) - T::ff32(JZAZBZ_D) * (pixel[0] + JZAZBZ_D0.to_dt())),
+                / (pixel[0] + JZAZBZ_D0.to_dt()).fma(T::ff32(-JZAZBZ_D), T::ff32(1.0 + JZAZBZ_D)),
             pixel[1],
             pixel[2],
         ],
