@@ -58,9 +58,14 @@ pub trait DType:
     + PartialOrd
     + FromF32
 {
+    fn powi(self, rhs: i32) -> Self;
     fn powf(self, rhs: Self) -> Self;
     /// Sign-agnostic powf
     fn spowf(self, rhs: Self) -> Self;
+    fn rem_euclid(self, rhs: Self) -> Self;
+
+    fn sqrt(self) -> Self;
+    fn cbrt(self) -> Self;
 
     fn abs(self) -> Self;
     fn max(self, other: Self) -> Self;
@@ -70,6 +75,7 @@ pub trait DType:
     fn cos(self) -> Self;
     fn to_degrees(self) -> Self;
     fn to_radians(self) -> Self;
+    fn atan2(self, rhs: Self) -> Self;
 
     fn _fma(self, mul: Self, add: Self) -> Self;
     /// Fused multiply-add if "fma" is enabled in rustc
@@ -86,11 +92,23 @@ pub trait DType:
 macro_rules! impl_float {
     ($type:ident) => {
         impl DType for $type {
+            fn powi(self, rhs: i32) -> Self {
+                self.powi(rhs)
+            }
             fn powf(self, rhs: Self) -> Self {
                 self.powf(rhs)
             }
             fn spowf(self, rhs: Self) -> Self {
                 self.abs().powf(rhs).copysign(self)
+            }
+            fn rem_euclid(self, rhs: Self) -> Self {
+                self.rem_euclid(rhs)
+            }
+            fn sqrt(self) -> Self {
+                self.sqrt()
+            }
+            fn cbrt(self) -> Self {
+                self.cbrt()
             }
             fn abs(self) -> Self {
                 self.abs()
@@ -99,7 +117,7 @@ macro_rules! impl_float {
                 self.max(other)
             }
             fn min(self, other: Self) -> Self {
-                self.max(other)
+                self.min(other)
             }
             fn sin(self) -> Self {
                 self.sin()
@@ -112,6 +130,9 @@ macro_rules! impl_float {
             }
             fn to_radians(self) -> Self {
                 self.to_radians()
+            }
+            fn atan2(self, rhs: Self) -> Self {
+                self.atan2(rhs)
             }
             fn _fma(self, mul: Self, add: Self) -> Self {
                 self.mul_add(mul, add)
@@ -978,31 +999,30 @@ pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
 }
 
 /// Convert from sRGB to HSV.
-#[no_mangle]
-pub extern "C" fn srgb_to_hsv(pixel: &mut [f32; 3]) {
+pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
     let vmin = pixel[0].min(pixel[1]).min(pixel[2]);
     let vmax = pixel[0].max(pixel[1]).max(pixel[2]);
     let dmax = vmax - vmin;
 
     let v = vmax;
 
-    let (h, s) = if dmax == 0.0 {
-        (0.0, 0.0)
+    let (h, s): (T, T) = if dmax == 0.0.to_dt() {
+        (0.0.to_dt(), 0.0.to_dt())
     } else {
         let s = dmax / vmax;
 
-        let dr = (((vmax - pixel[0]) / 6.0) + (dmax / 2.0)) / dmax;
-        let dg = (((vmax - pixel[1]) / 6.0) + (dmax / 2.0)) / dmax;
-        let db = (((vmax - pixel[2]) / 6.0) + (dmax / 2.0)) / dmax;
+        let dr = (((vmax - pixel[0]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let dg = (((vmax - pixel[1]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let db = (((vmax - pixel[2]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
 
         let h = if pixel[0] == vmax {
             db - dg
         } else if pixel[1] == vmax {
-            (1.0 / 3.0) + dr - db
+            T::ff32(1.0 / 3.0) + dr - db
         } else {
-            (2.0 / 3.0) + dg - dr
+            T::ff32(2.0 / 3.0) + dg - dr
         }
-        .rem_euclid(1.0);
+        .rem_euclid(1.0.to_dt());
         (h, s)
     };
     *pixel = [h, s, v];
@@ -1011,8 +1031,7 @@ pub extern "C" fn srgb_to_hsv(pixel: &mut [f32; 3]) {
 /// Convert from sRGB to Linear RGB by applying the sRGB EOTF
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
-#[no_mangle]
-pub extern "C" fn srgb_to_lrgb(pixel: &mut [f32; 3]) {
+pub fn srgb_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
     pixel.iter_mut().for_each(|c| *c = srgb_eotf(*c));
 }
 
@@ -1026,31 +1045,29 @@ pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
 /// Convert from CIE XYZ to CIE LAB.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
-#[no_mangle]
-pub extern "C" fn xyz_to_cielab(pixel: &mut [f32; 3]) {
+pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
     // Reverse D65 standard illuminant
-    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c /= d);
+    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c = *c / d.to_dt());
 
     pixel.iter_mut().for_each(|c| {
-        if *c > LAB_DELTA.powi(3) {
+        if *c > T::ff32(LAB_DELTA).powi(3) {
             *c = c.cbrt()
         } else {
-            *c = *c / (3.0 * LAB_DELTA.powi(2)) + (4f32 / 29f32)
+            *c = *c / (3.0 * LAB_DELTA.powi(2)).to_dt() + (4f32 / 29f32).to_dt()
         }
     });
 
     *pixel = [
-        (116.0 * pixel[1]) - 16.0,
-        500.0 * (pixel[0] - pixel[1]),
-        200.0 * (pixel[1] - pixel[2]),
+        (T::ff32(116.0) * pixel[1]) - 16.0.to_dt(),
+        T::ff32(500.0) * (pixel[0] - pixel[1]),
+        T::ff32(200.0) * (pixel[1] - pixel[2]),
     ]
 }
 
 /// Convert from CIE XYZ to OKLAB.
 ///
 /// <https://bottosson.github.io/posts/oklab/>
-#[no_mangle]
-pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
+pub fn xyz_to_oklab<T: DType>(pixel: &mut [T; 3]) {
     let mut lms = matmul3t(*pixel, OKLAB_M1);
     lms.iter_mut().for_each(|c| *c = c.cbrt());
     *pixel = matmul3t(lms, OKLAB_M2);
@@ -1059,13 +1076,12 @@ pub extern "C" fn xyz_to_oklab(pixel: &mut [f32; 3]) {
 /// Convert CIE XYZ to JzAzBz
 ///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-#[no_mangle]
-pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
+pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
     let mut lms = matmul3(
         JZAZBZ_M1,
         [
-            pixel[0] * JZAZBZ_B - (JZAZBZ_B - 1.0) * pixel[2],
-            pixel[1] * JZAZBZ_G - (JZAZBZ_G - 1.0) * pixel[0],
+            pixel[0] * JZAZBZ_B.to_dt() - T::ff32(JZAZBZ_B - 1.0) * pixel[2],
+            pixel[1] * JZAZBZ_G.to_dt() - T::ff32(JZAZBZ_G - 1.0) * pixel[0],
             pixel[2],
         ],
     );
@@ -1075,7 +1091,7 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
     let lab = matmul3(JZAZBZ_M2, lms);
 
     *pixel = [
-        ((1.0 + JZAZBZ_D) * lab[0]) / (1.0 + JZAZBZ_D * lab[0]) - JZAZBZ_D0,
+        (T::ff32(1.0 + JZAZBZ_D) * lab[0]) / lab[0].fma(JZAZBZ_D.to_dt(), 1.0.to_dt()) - JZAZBZ_D0.to_dt(),
         lab[1],
         lab[2],
     ]
@@ -1091,8 +1107,7 @@ pub extern "C" fn xyz_to_jzazbz(pixel: &mut [f32; 3]) {
 /// Convert LRGB to ICtCp. Unvalidated, WIP
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
-// #[no_mangle]
-pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
+pub fn _lrgb_to_ictcp<T: DType>(pixel: &mut [T; 3]) {
     // <https://www.itu.int/rec/R-REC-BT.2020/en>
     // let alpha = 1.09929682680944;
     // let beta = 0.018053968510807;
@@ -1111,12 +1126,11 @@ pub extern "C" fn _lrgb_to_ictcp(pixel: &mut [f32; 3]) {
 /// Converts an LAB based space to a cylindrical representation.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-#[no_mangle]
-pub extern "C" fn lab_to_lch(pixel: &mut [f32; 3]) {
+pub fn lab_to_lch<T: DType>(pixel: &mut [T; 3]) {
     *pixel = [
         pixel[0],
         (pixel[1].powi(2) + pixel[2].powi(2)).sqrt(),
-        pixel[2].atan2(pixel[1]).to_degrees().rem_euclid(360.0),
+        pixel[2].atan2(pixel[1]).to_degrees().rem_euclid(360.0.to_dt()),
     ];
 }
 
@@ -1328,7 +1342,13 @@ macro_rules! cdef3 {
 
 cdef1!(srgb_eotf, srgb_eotf_f32, srgb_eotf_f64);
 
+cdef3!(srgb_to_hsv, srgb_to_hsv_f32, srgb_to_hsv_f64);
+cdef3!(srgb_to_lrgb, srgb_to_lrgb_f32, srgb_to_lrgb_f64);
 cdef3!(lrgb_to_xyz, lrgb_to_xyz_f32, lrgb_to_xyz_f64);
+cdef3!(xyz_to_cielab, xyz_to_cielab_f32, xyz_to_cielab_f64);
+cdef3!(xyz_to_oklab, xyz_to_oklab_f32, xyz_to_oklab_f64);
+cdef3!(xyz_to_jzazbz, xyz_to_jzazbz_f32, xyz_to_jzazbz_f64);
+cdef3!(lab_to_lch, lab_to_lch_f32, lab_to_lch_f64);
 
 // ### TESTS ### {{{
 #[cfg(test)]
@@ -1566,7 +1586,7 @@ mod tests {
 
     #[test]
     fn hsv_forwards() {
-        func_cmp(SRGB, HSV, srgb_to_hsv)
+        func_cmp(SRGB, HSV, srgb_to_hsv_f32)
     }
     #[test]
     fn hsv_backwards() {
@@ -1575,7 +1595,7 @@ mod tests {
 
     #[test]
     fn lrgb_forwards() {
-        func_cmp(SRGB, LRGB, srgb_to_lrgb)
+        func_cmp(SRGB, LRGB, srgb_to_lrgb_f32)
     }
     #[test]
     fn lrgb_backwards() {
@@ -1593,7 +1613,7 @@ mod tests {
 
     #[test]
     fn lab_forwards() {
-        func_cmp(XYZ, LAB, xyz_to_cielab)
+        func_cmp(XYZ, LAB, xyz_to_cielab_f32)
     }
     #[test]
     fn lab_backwards() {
@@ -1602,7 +1622,7 @@ mod tests {
 
     #[test]
     fn lch_forwards() {
-        func_cmp(LAB, LCH, lab_to_lch)
+        func_cmp(LAB, LCH, lab_to_lch_f32)
     }
     #[test]
     fn lch_backwards() {
@@ -1611,7 +1631,7 @@ mod tests {
 
     #[test]
     fn oklab_forwards() {
-        func_cmp(XYZ, OKLAB, xyz_to_oklab)
+        func_cmp(XYZ, OKLAB, xyz_to_oklab_f32)
     }
     #[test]
     fn oklab_backwards() {
@@ -1621,7 +1641,7 @@ mod tests {
     // Lower epsilon because of the extremely wide gamut creating tiny values
     #[test]
     fn jzazbz_forwards() {
-        func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz, 2e-1, &[])
+        func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz_f32, 2e-1, &[])
     }
     #[test]
     fn jzazbz_backwards() {
@@ -1752,17 +1772,17 @@ mod tests {
     fn nan_checks() {
         let it = [1e+3, -1e+3, 1e-3, -1e-3];
         let fns: &[(&'static str, extern "C" fn(&mut [f32; 3]))] = &[
-            ("hsv_forwards", srgb_to_hsv),
+            ("hsv_forwards", srgb_to_hsv_f32),
             ("hsv_backwards", hsv_to_srgb),
-            ("lrgb_forwards", srgb_to_lrgb),
+            ("lrgb_forwards", srgb_to_lrgb_f32),
             ("lrgb_backwards", lrgb_to_srgb),
             ("xyz_forwards", lrgb_to_xyz_f32),
             ("xyz_backwards", xyz_to_lrgb),
-            ("lab_forwards", xyz_to_cielab),
+            ("lab_forwards", xyz_to_cielab_f32),
             ("lab_backwards", cielab_to_xyz),
-            ("lch_forwards", lab_to_lch),
+            ("lch_forwards", lab_to_lch_f32),
             ("lch_backwards", lch_to_lab),
-            ("oklab_forwards", xyz_to_oklab),
+            ("oklab_forwards", xyz_to_oklab_f32),
             ("oklab_backwards", oklab_to_xyz),
             // ("jzazbz_forwards", xyz_to_jzazbz), // ugh
             ("jzazbz_backwards", jzazbz_to_xyz),
