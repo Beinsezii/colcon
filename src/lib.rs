@@ -68,6 +68,7 @@ pub trait DType:
     fn cbrt(self) -> Self;
 
     fn abs(self) -> Self;
+    fn trunc(self) -> Self;
     fn max(self, other: Self) -> Self;
     fn min(self, other: Self) -> Self;
 
@@ -112,6 +113,9 @@ macro_rules! impl_float {
             }
             fn abs(self) -> Self {
                 self.abs()
+            }
+            fn trunc(self) -> Self {
+                self.trunc()
             }
             fn max(self, other: Self) -> Self {
                 self.max(other)
@@ -1181,29 +1185,28 @@ pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
 }
 
 /// Convert from HSV to sRGB.
-#[no_mangle]
-pub extern "C" fn hsv_to_srgb(pixel: &mut [f32; 3]) {
-    if pixel[1] == 0.0 {
+pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
+    if pixel[1] == 0.0.to_dt() {
         *pixel = [pixel[2]; 3];
     } else {
-        let mut var_h = pixel[0] * 6.0;
-        if var_h == 6.0 {
-            var_h = 0.0
+        let mut var_h = pixel[0] * 6.0.to_dt();
+        if var_h == 6.0.to_dt() {
+            var_h = 0.0.to_dt()
         }
         let var_i = var_h.trunc();
-        let var_1 = pixel[2] * (1.0 - pixel[1]);
-        let var_2 = pixel[2] * (1.0 - pixel[1] * (var_h - var_i));
-        let var_3 = pixel[2] * (1.0 - pixel[1] * (1.0 - (var_h - var_i)));
+        let var_1 = pixel[2] * (T::ff32(1.0) - pixel[1]);
+        let var_2 = pixel[2] * (T::ff32(1.0) - pixel[1] * (var_h - var_i));
+        let var_3 = pixel[2] * (T::ff32(1.0) - pixel[1] * (T::ff32(1.0) - (var_h - var_i)));
 
-        *pixel = if var_i == 0.0 {
+        *pixel = if var_i == 0.0.to_dt() {
             [pixel[2], var_3, var_1]
-        } else if var_i == 1.0 {
+        } else if var_i == 1.0.to_dt() {
             [var_2, pixel[2], var_1]
-        } else if var_i == 2.0 {
+        } else if var_i == 2.0.to_dt() {
             [var_1, pixel[2], var_3]
-        } else if var_i == 3.0 {
+        } else if var_i == 3.0.to_dt() {
             [var_1, var_2, pixel[2]]
-        } else if var_i == 4.0 {
+        } else if var_i == 4.0.to_dt() {
             [var_3, var_1, pixel[2]]
         } else {
             [pixel[2], var_1, var_2]
@@ -1214,46 +1217,42 @@ pub extern "C" fn hsv_to_srgb(pixel: &mut [f32; 3]) {
 /// Convert from Linear RGB to sRGB by applying the inverse sRGB EOTF
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
-#[no_mangle]
-pub extern "C" fn lrgb_to_srgb(pixel: &mut [f32; 3]) {
+pub fn lrgb_to_srgb<T: DType>(pixel: &mut [T; 3]) {
     pixel.iter_mut().for_each(|c| *c = srgb_eotf_inverse(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
-#[no_mangle]
-pub extern "C" fn xyz_to_lrgb(pixel: &mut [f32; 3]) {
+pub fn xyz_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
     *pixel = matmul3(XYZ65_MAT_INV, *pixel)
 }
 
 /// Convert from CIE LAB to CIE XYZ.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
-#[no_mangle]
-pub extern "C" fn cielab_to_xyz(pixel: &mut [f32; 3]) {
+pub fn cielab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
     *pixel = [
-        (pixel[0] + 16.0) / 116.0 + pixel[1] / 500.0,
-        (pixel[0] + 16.0) / 116.0,
-        (pixel[0] + 16.0) / 116.0 - pixel[2] / 200.0,
+        (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() + pixel[1] / 500.0.to_dt(),
+        (pixel[0] + 16.0.to_dt()) / 116.0.to_dt(),
+        (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() - pixel[2] / 200.0.to_dt(),
     ];
 
     pixel.iter_mut().for_each(|c| {
-        if *c > LAB_DELTA {
+        if *c > LAB_DELTA.to_dt() {
             *c = c.powi(3)
         } else {
-            *c = 3.0 * LAB_DELTA.powi(2) * (*c - 4f32 / 29f32)
+            *c = T::ff32(3.0) * LAB_DELTA.powi(2).to_dt() * (*c - (4f32 / 29f32).to_dt())
         }
     });
 
-    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c *= d);
+    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c = *c * d.to_dt());
 }
 
 /// Convert from OKLAB to CIE XYZ.
 ///
 /// <https://bottosson.github.io/posts/oklab/>
-#[no_mangle]
-pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
+pub fn oklab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
     let mut lms = matmul3t(*pixel, OKLAB_M2_INV);
     lms.iter_mut().for_each(|c| *c = c.powi(3));
     *pixel = matmul3t(lms, OKLAB_M1_INV);
@@ -1262,12 +1261,12 @@ pub extern "C" fn oklab_to_xyz(pixel: &mut [f32; 3]) {
 /// Convert JzAzBz to CIE XYZ
 ///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-#[no_mangle]
-pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
+pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
     let mut lms = matmul3(
         JZAZBZ_M2_INV,
         [
-            (pixel[0] + JZAZBZ_D0) / (1.0 + JZAZBZ_D - JZAZBZ_D * (pixel[0] + JZAZBZ_D0)),
+            (pixel[0] + JZAZBZ_D0.to_dt())
+                / (T::ff32(1.0 + JZAZBZ_D) - T::ff32(JZAZBZ_D) * (pixel[0] + JZAZBZ_D0.to_dt())),
             pixel[1],
             pixel[2],
         ],
@@ -1277,8 +1276,8 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 
     *pixel = matmul3(JZAZBZ_M1_INV, lms);
 
-    pixel[0] = (pixel[0] + (JZAZBZ_B - 1.0) * pixel[2]) / JZAZBZ_B;
-    pixel[1] = (pixel[1] + (JZAZBZ_G - 1.0) * pixel[0]) / JZAZBZ_G;
+    pixel[0] = pixel[2].fma((JZAZBZ_B - 1.0).to_dt(), pixel[0]) / JZAZBZ_B.to_dt();
+    pixel[1] = pixel[0].fma((JZAZBZ_G - 1.0).to_dt(), pixel[1]) / JZAZBZ_G.to_dt();
 }
 
 // Disabled for now as all the papers are paywalled
@@ -1292,7 +1291,7 @@ pub extern "C" fn jzazbz_to_xyz(pixel: &mut [f32; 3]) {
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
-pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
+pub fn _ictcp_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
     // lms prime
     let mut lms = matmul3(ICTCP_M2_INV, *pixel);
     // non-prime lms
@@ -1303,8 +1302,7 @@ pub extern "C" fn _ictcp_to_lrgb(pixel: &mut [f32; 3]) {
 /// Retrieves an LAB based space from its cylindrical representation.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-#[no_mangle]
-pub extern "C" fn lch_to_lab(pixel: &mut [f32; 3]) {
+pub fn lch_to_lab<T: DType>(pixel: &mut [T; 3]) {
     *pixel = [
         pixel[0],
         pixel[1] * pixel[2].to_radians().cos(),
@@ -1342,6 +1340,7 @@ macro_rules! cdef3 {
 
 cdef1!(srgb_eotf, srgb_eotf_f32, srgb_eotf_f64);
 
+// Forward
 cdef3!(srgb_to_hsv, srgb_to_hsv_f32, srgb_to_hsv_f64);
 cdef3!(srgb_to_lrgb, srgb_to_lrgb_f32, srgb_to_lrgb_f64);
 cdef3!(lrgb_to_xyz, lrgb_to_xyz_f32, lrgb_to_xyz_f64);
@@ -1349,6 +1348,15 @@ cdef3!(xyz_to_cielab, xyz_to_cielab_f32, xyz_to_cielab_f64);
 cdef3!(xyz_to_oklab, xyz_to_oklab_f32, xyz_to_oklab_f64);
 cdef3!(xyz_to_jzazbz, xyz_to_jzazbz_f32, xyz_to_jzazbz_f64);
 cdef3!(lab_to_lch, lab_to_lch_f32, lab_to_lch_f64);
+
+// Backward
+cdef3!(hsv_to_srgb, hsv_to_srgb_f32, hsv_to_srgb_f64);
+cdef3!(lrgb_to_srgb, lrgb_to_srgb_f32, lrgb_to_srgb_f64);
+cdef3!(xyz_to_lrgb, xyz_to_lrgb_f32, xyz_to_lrgb_f64);
+cdef3!(cielab_to_xyz, cielab_to_xyz_f32, cielab_to_xyz_f64);
+cdef3!(oklab_to_xyz, oklab_to_xyz_f32, oklab_to_xyz_f64);
+cdef3!(jzazbz_to_xyz, jzazbz_to_xyz_f32, jzazbz_to_xyz_f64);
+cdef3!(lch_to_lab, lch_to_lab_f32, lch_to_lab_f64);
 
 // ### TESTS ### {{{
 #[cfg(test)]
@@ -1590,7 +1598,7 @@ mod tests {
     }
     #[test]
     fn hsv_backwards() {
-        func_cmp(HSV, SRGB, hsv_to_srgb)
+        func_cmp(HSV, SRGB, hsv_to_srgb_f32)
     }
 
     #[test]
@@ -1599,7 +1607,7 @@ mod tests {
     }
     #[test]
     fn lrgb_backwards() {
-        func_cmp(LRGB, SRGB, lrgb_to_srgb)
+        func_cmp(LRGB, SRGB, lrgb_to_srgb_f32)
     }
 
     #[test]
@@ -1608,7 +1616,7 @@ mod tests {
     }
     #[test]
     fn xyz_backwards() {
-        func_cmp(XYZ, LRGB, xyz_to_lrgb)
+        func_cmp(XYZ, LRGB, xyz_to_lrgb_f32)
     }
 
     #[test]
@@ -1617,7 +1625,7 @@ mod tests {
     }
     #[test]
     fn lab_backwards() {
-        func_cmp(LAB, XYZ, cielab_to_xyz)
+        func_cmp(LAB, XYZ, cielab_to_xyz_f32)
     }
 
     #[test]
@@ -1626,7 +1634,7 @@ mod tests {
     }
     #[test]
     fn lch_backwards() {
-        func_cmp(LCH, LAB, lch_to_lab)
+        func_cmp(LCH, LAB, lch_to_lab_f32)
     }
 
     #[test]
@@ -1635,7 +1643,7 @@ mod tests {
     }
     #[test]
     fn oklab_backwards() {
-        func_cmp(OKLAB, XYZ, oklab_to_xyz)
+        func_cmp(OKLAB, XYZ, oklab_to_xyz_f32)
     }
 
     // Lower epsilon because of the extremely wide gamut creating tiny values
@@ -1645,7 +1653,7 @@ mod tests {
     }
     #[test]
     fn jzazbz_backwards() {
-        func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz, 2e-1, &[])
+        func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz_f32, 2e-1, &[])
     }
 
     // ICtCp development tests.
@@ -1773,19 +1781,19 @@ mod tests {
         let it = [1e+3, -1e+3, 1e-3, -1e-3];
         let fns: &[(&'static str, extern "C" fn(&mut [f32; 3]))] = &[
             ("hsv_forwards", srgb_to_hsv_f32),
-            ("hsv_backwards", hsv_to_srgb),
+            ("hsv_backwards", hsv_to_srgb_f32),
             ("lrgb_forwards", srgb_to_lrgb_f32),
-            ("lrgb_backwards", lrgb_to_srgb),
+            ("lrgb_backwards", lrgb_to_srgb_f32),
             ("xyz_forwards", lrgb_to_xyz_f32),
-            ("xyz_backwards", xyz_to_lrgb),
+            ("xyz_backwards", xyz_to_lrgb_f32),
             ("lab_forwards", xyz_to_cielab_f32),
-            ("lab_backwards", cielab_to_xyz),
+            ("lab_backwards", cielab_to_xyz_f32),
             ("lch_forwards", lab_to_lch_f32),
-            ("lch_backwards", lch_to_lab),
+            ("lch_backwards", lch_to_lab_f32),
             ("oklab_forwards", xyz_to_oklab_f32),
-            ("oklab_backwards", oklab_to_xyz),
+            ("oklab_backwards", oklab_to_xyz_f32),
             // ("jzazbz_forwards", xyz_to_jzazbz), // ugh
-            ("jzazbz_backwards", jzazbz_to_xyz),
+            ("jzazbz_backwards", jzazbz_to_xyz_f32),
         ];
         for (label, func) in fns {
             for a in it.iter() {
