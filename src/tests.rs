@@ -1,4 +1,3 @@
-// ### TESTS ### {{{
 use super::*;
 
 const HEX: &str = "#3359F2";
@@ -6,7 +5,7 @@ const IRGB: [u8; 3] = [51, 89, 242];
 
 // ### COLOUR-REFS ### {{{
 
-const SRGB: &'static [[f32; 3]] = &[
+const SRGB: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [1.00000000, 0.00000000, 0.00000000],
     [0.00000000, 1.00000000, 0.00000000],
@@ -18,7 +17,7 @@ const SRGB: &'static [[f32; 3]] = &[
     [5.00000000, 10.00000000, 15.00000000],
     [-5.00000000, -10.00000000, -15.00000000],
 ];
-const LRGB: &'static [[f32; 3]] = &[
+const LRGB: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [1.00000000, 0.00000000, 0.00000000],
     [0.00000000, 1.00000000, 0.00000000],
@@ -30,7 +29,7 @@ const LRGB: &'static [[f32; 3]] = &[
     [42.96599571, 223.82627997, 589.69564509],
     [-0.38699690, -0.77399381, -1.16099071],
 ];
-const HSV: &'static [[f32; 3]] = &[
+const HSV: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [0.00000000, 1.00000000, 1.00000000],
     [0.33333333, 1.00000000, 1.00000000],
@@ -42,7 +41,7 @@ const HSV: &'static [[f32; 3]] = &[
     [0.58333333, 0.66666667, 15.00000000],
     [0.08333333, -2.00000000, -5.00000000],
 ];
-const XYZ: &'static [[f32; 3]] = &[
+const XYZ: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [0.41240000, 0.21260000, 0.01930000],
     [0.35760000, 0.71520000, 0.11920000],
@@ -54,7 +53,7 @@ const XYZ: &'static [[f32; 3]] = &[
     [204.19951828, 211.79115169, 588.01504694],
     [-0.64593653, -0.71965944, -1.20325077],
 ];
-const LAB: &'static [[f32; 3]] = &[
+const LAB: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [53.23288179, 80.11117774, 67.22370367],
     [87.73703347, -86.18285500, 83.18783466],
@@ -66,7 +65,7 @@ const LAB: &'static [[f32; 3]] = &[
     [675.44970111, 14.25078120, -436.42562428],
     [-650.06570921, 155.94479927, 599.90623227],
 ];
-const LCH: &'static [[f32; 3]] = &[
+const LCH: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [53.23288179, 104.57928635, 40.00102571],
     [87.73703347, 119.78188649, 136.01306869],
@@ -78,7 +77,7 @@ const LCH: &'static [[f32; 3]] = &[
     [675.44970111, 436.65823054, 271.87023758],
     [-650.06570921, 619.84374477, 75.42854110],
 ];
-const OKLAB: &'static [[f32; 3]] = &[
+const OKLAB: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [0.62792590, 0.22488760, 0.12580493],
     [0.86645187, -0.23392144, 0.17942177],
@@ -90,7 +89,7 @@ const OKLAB: &'static [[f32; 3]] = &[
     [5.95611678, -0.42728383, -1.24134000],
     [-0.89252901, 0.04256306, 0.07613246],
 ];
-const OKLCH: &'static [[f32; 3]] = &[
+const OKLCH: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [0.62792590, 0.25768453, 29.22319405],
     [0.86645187, 0.29480741, 142.51117284],
@@ -102,7 +101,7 @@ const OKLCH: &'static [[f32; 3]] = &[
     [5.95611678, 1.31282005, 251.00593438],
     [-0.89252901, 0.08722251, 60.79193305],
 ];
-const JZAZBZ: &'static [[f32; 3]] = &[
+const JZAZBZ: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [0.00816620, 0.01616207, 0.01140765],
     [0.01243416, -0.01624847, 0.01656722],
@@ -114,7 +113,7 @@ const JZAZBZ: &'static [[f32; 3]] = &[
     [0.22861137, -0.04674604, -0.11322403],
     [-0.78600741, 1933.15497262, 2113.40419865],
 ];
-const JZCZHZ: &'static [[f32; 3]] = &[
+const JZCZHZ: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [0.00816620, 0.01978250, 35.21553828],
     [0.01243416, 0.02320529, 134.44348766],
@@ -127,7 +126,7 @@ const JZCZHZ: &'static [[f32; 3]] = &[
     [-0.78600741, 2864.18670045, 47.55048725],
 ];
 
-const _ICTCP2: &'static [[f32; 3]] = &[
+const _ICTCP2: &'static [[f64; 3]] = &[
     [0.00000073, -0.00000000, 0.00000000],
     [0.08575747, -0.02634122, 0.09894511],
     [0.13074534, -0.11285245, -0.02347905],
@@ -143,7 +142,7 @@ const _ICTCP2: &'static [[f32; 3]] = &[
 // ### COLOUR-REFS ### }}}
 
 // ### Comparison FNs ### {{{
-fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32, skips: &'static [usize]) {
+fn pix_cmp(input: &[[f64; 3]], reference: &[[f64; 3]], epsilon: f64, skips: &'static [usize]) {
     let mut err = String::new();
     let mut cum_err = 0.0;
     for (n, (i, r)) in input.iter().zip(reference.iter()).enumerate() {
@@ -156,7 +155,7 @@ fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32, skips: &'st
                     .iter()
                     .zip(r.iter())
                     .map(|(ix, rx)| ((ix - rx) + 1.0).abs().powi(2))
-                    .sum::<f32>();
+                    .sum::<f64>();
                 err.push_str(&format!(
                     "\nA{n}: {:.8} {:.8} {:.8}\nB{n}: {:.8} {:.8} {:.8}\nERR²: {}\n",
                     i[0], i[1], i[2], r[0], r[1], r[2], dev
@@ -174,10 +173,10 @@ fn pix_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], epsilon: f32, skips: &'st
 }
 
 fn func_cmp_full(
-    input: &[[f32; 3]],
-    reference: &[[f32; 3]],
-    function: extern "C" fn(&mut [f32; 3]),
-    epsilon: f32,
+    input: &[[f64; 3]],
+    reference: &[[f64; 3]],
+    function: fn(&mut [f64; 3]),
+    epsilon: f64,
     skips: &'static [usize],
 ) {
     let mut input = input.to_owned();
@@ -185,16 +184,16 @@ fn func_cmp_full(
     pix_cmp(&input, reference, epsilon, skips);
 }
 
-fn func_cmp(input: &[[f32; 3]], reference: &[[f32; 3]], function: extern "C" fn(&mut [f32; 3])) {
+fn func_cmp(input: &[[f64; 3]], reference: &[[f64; 3]], function: fn(&mut [f64; 3])) {
     func_cmp_full(input, reference, function, 1e-3, &[])
 }
 
 fn conv_cmp_full(
     input_space: Space,
-    input: &[[f32; 3]],
+    input: &[[f64; 3]],
     reference_space: Space,
-    reference: &[[f32; 3]],
-    epsilon: f32,
+    reference: &[[f64; 3]],
+    epsilon: f64,
     skips: &'static [usize],
 ) {
     let mut input = input.to_owned();
@@ -202,8 +201,9 @@ fn conv_cmp_full(
     pix_cmp(&input, reference, epsilon, skips)
 }
 
-fn conv_cmp(input_space: Space, input: &[[f32; 3]], reference_space: Space, reference: &[[f32; 3]]) {
-    conv_cmp_full(input_space, input, reference_space, reference, 1e-2, &[0, 7])
+fn conv_cmp(input_space: Space, input: &[[f64; 3]], reference_space: Space, reference: &[[f64; 3]]) {
+    // skip places where hue can wrap
+    conv_cmp_full(input_space, input, reference_space, reference, 1e-3, &[0, 1, 7])
 }
 // ### Comparison FNs ### }}}
 
@@ -232,66 +232,66 @@ fn hex_from() {
 
 #[test]
 fn hsv_forwards() {
-    func_cmp(SRGB, HSV, srgb_to_hsv_f32)
+    func_cmp(SRGB, HSV, srgb_to_hsv)
 }
 #[test]
 fn hsv_backwards() {
-    func_cmp(HSV, SRGB, hsv_to_srgb_f32)
+    func_cmp(HSV, SRGB, hsv_to_srgb)
 }
 
 #[test]
 fn lrgb_forwards() {
-    func_cmp(SRGB, LRGB, srgb_to_lrgb_f32)
+    func_cmp(SRGB, LRGB, srgb_to_lrgb)
 }
 #[test]
 fn lrgb_backwards() {
-    func_cmp(LRGB, SRGB, lrgb_to_srgb_f32)
+    func_cmp(LRGB, SRGB, lrgb_to_srgb)
 }
 
 #[test]
 fn xyz_forwards() {
-    func_cmp(LRGB, XYZ, lrgb_to_xyz_f32)
+    func_cmp(LRGB, XYZ, lrgb_to_xyz)
 }
 #[test]
 fn xyz_backwards() {
-    func_cmp(XYZ, LRGB, xyz_to_lrgb_f32)
+    func_cmp(XYZ, LRGB, xyz_to_lrgb)
 }
 
 #[test]
 fn lab_forwards() {
-    func_cmp(XYZ, LAB, xyz_to_cielab_f32)
+    func_cmp(XYZ, LAB, xyz_to_cielab)
 }
 #[test]
 fn lab_backwards() {
-    func_cmp(LAB, XYZ, cielab_to_xyz_f32)
+    func_cmp(LAB, XYZ, cielab_to_xyz)
 }
 
 #[test]
 fn lch_forwards() {
-    func_cmp(LAB, LCH, lab_to_lch_f32)
+    func_cmp(LAB, LCH, lab_to_lch)
 }
 #[test]
 fn lch_backwards() {
-    func_cmp(LCH, LAB, lch_to_lab_f32)
+    func_cmp(LCH, LAB, lch_to_lab)
 }
 
 #[test]
 fn oklab_forwards() {
-    func_cmp(XYZ, OKLAB, xyz_to_oklab_f32)
+    func_cmp(XYZ, OKLAB, xyz_to_oklab)
 }
 #[test]
 fn oklab_backwards() {
-    func_cmp(OKLAB, XYZ, oklab_to_xyz_f32)
+    func_cmp(OKLAB, XYZ, oklab_to_xyz)
 }
 
 // Lower epsilon because of the extremely wide gamut creating tiny values
 #[test]
 fn jzazbz_forwards() {
-    func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz_f32, 2e-1, &[])
+    func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-2, &[])
 }
 #[test]
 fn jzazbz_backwards() {
-    func_cmp_full(JZAZBZ, XYZ, jzazbz_to_xyz_f32, 2e-1, &[])
+    func_cmp(JZAZBZ, XYZ, jzazbz_to_xyz)
 }
 
 // ICtCp development tests.
@@ -301,7 +301,7 @@ fn ictcp_inversion() {
     let mut pixel = LRGB.to_owned();
     pixel.iter_mut().for_each(|p| _lrgb_to_ictcp(p));
     pixel.iter_mut().for_each(|p| _ictcp_to_lrgb(p));
-    pix_cmp(&pixel, LRGB, 1e-1, &[]);
+    pix_cmp(&pixel, LRGB, 1e-3, &[]);
 }
 // Disable reference tests for public commits
 //
@@ -326,17 +326,17 @@ fn tree_jump() {
     conv_cmp(Space::CIELCH, LCH, Space::OKLCH, OKLCH);
 
     println!("OKLCH -> JZCZHZ");
-    conv_cmp_full(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ, 2e-1, &[0, 7]);
+    conv_cmp(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ);
 
     println!("JZCZHZ -> HSV");
     conv_cmp(Space::JZCZHZ, JZCZHZ, Space::HSV, HSV);
 
     // backwards
     println!("HSV -> JZCZHZ");
-    conv_cmp_full(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ, 2e-1, &[0, 7]);
+    conv_cmp(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ);
 
     println!("JZCZHZ -> OKLCH");
-    conv_cmp_full(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH, 1e-1, &[0, 7]);
+    conv_cmp(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH);
 
     println!("OKLCH -> LCH");
     conv_cmp(Space::OKLCH, OKLCH, Space::CIELCH, LCH);
@@ -344,12 +344,12 @@ fn tree_jump() {
     // add 1 to skip because the hue wraps from 0.0000 to 0.9999
     // fuck you precision
     println!("LCH -> HSV");
-    conv_cmp_full(Space::CIELCH, LCH, Space::HSV, HSV, 1e-1, &[0, 1, 7]);
+    conv_cmp(Space::CIELCH, LCH, Space::HSV, HSV);
 }
 
 #[test]
 fn sliced() {
-    let mut pixel: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+    let mut pixel: Vec<f64> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
         acc.extend_from_slice(it);
         acc
     });
@@ -358,16 +358,16 @@ fn sliced() {
         &pixel
             .chunks_exact(3)
             .map(|c| c.try_into().unwrap())
-            .collect::<Vec<[f32; 3]>>(),
+            .collect::<Vec<[f64; 3]>>(),
         LCH,
-        1e-1,
+        1e-2,
         &[],
     );
 }
 
 #[test]
 fn sliced_odd() {
-    let mut pixel: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+    let mut pixel: Vec<f64> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
         acc.extend_from_slice(it);
         acc
     });
@@ -377,9 +377,9 @@ fn sliced_odd() {
         &pixel
             .chunks_exact(3)
             .map(|c| c.try_into().unwrap())
-            .collect::<Vec<[f32; 3]>>(),
+            .collect::<Vec<[f64; 3]>>(),
         LCH,
-        1e-1,
+        1e-2,
         &[],
     );
     assert_eq!(*pixel.last().unwrap(), 1234.5678);
@@ -395,7 +395,8 @@ fn sliced_smol() {
 
 #[test]
 fn interweave() {
-    let slice: Vec<f32> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
+    let srgb: Vec<[f32; 3]> = SRGB.iter().map(|p| p.map(|c| c as f32)).collect();
+    let slice: Vec<f32> = srgb.iter().fold(Vec::new(), |mut acc, it| {
         acc.extend_from_slice(it);
         acc
     });
@@ -410,28 +411,29 @@ fn interweave() {
         acc
     });
 
-    assert_eq!(SRGB, &chunked);
+    assert_eq!(srgb, chunked);
     assert_eq!(slice.as_slice(), weave(deinterleaved).as_ref())
 }
 
 #[test]
 fn nan_checks() {
     let it = [1e+3, -1e+3, 1e-3, -1e-3];
-    let fns: &[(&'static str, extern "C" fn(&mut [f32; 3]))] = &[
-        ("hsv_forwards", srgb_to_hsv_f32),
-        ("hsv_backwards", hsv_to_srgb_f32),
-        ("lrgb_forwards", srgb_to_lrgb_f32),
-        ("lrgb_backwards", lrgb_to_srgb_f32),
-        ("xyz_forwards", lrgb_to_xyz_f32),
-        ("xyz_backwards", xyz_to_lrgb_f32),
-        ("lab_forwards", xyz_to_cielab_f32),
-        ("lab_backwards", cielab_to_xyz_f32),
-        ("lch_forwards", lab_to_lch_f32),
-        ("lch_backwards", lch_to_lab_f32),
-        ("oklab_forwards", xyz_to_oklab_f32),
-        ("oklab_backwards", oklab_to_xyz_f32),
-        // ("jzazbz_forwards", xyz_to_jzazbz), // ugh
-        ("jzazbz_backwards", jzazbz_to_xyz_f32),
+    // do these at f32 to faster approach bounds
+    let fns: &[(&'static str, fn(&mut [f32; 3]))] = &[
+        ("hsv_forwards", srgb_to_hsv),
+        ("hsv_backwards", hsv_to_srgb),
+        ("lrgb_forwards", srgb_to_lrgb),
+        ("lrgb_backwards", lrgb_to_srgb),
+        ("xyz_forwards", lrgb_to_xyz),
+        ("xyz_backwards", xyz_to_lrgb),
+        ("lab_forwards", xyz_to_cielab),
+        ("lab_backwards", cielab_to_xyz),
+        ("lch_forwards", lab_to_lch),
+        ("lch_backwards", lch_to_lab),
+        ("oklab_forwards", xyz_to_oklab),
+        ("oklab_backwards", oklab_to_xyz),
+        //("jzazbz_forwards", xyz_to_jzazbz), // ugh
+        ("jzazbz_backwards", jzazbz_to_xyz),
     ];
     for (label, func) in fns {
         for a in it.iter() {
@@ -455,14 +457,14 @@ fn hue_wrap() {
     for a in it.clone() {
         for b in it.clone() {
             for c in it.clone() {
-                let (a, b, c) = (a as f32 / 10.0, b as f32 / 10.0, c as f32 / 10.0);
+                let (a, b, c) = (a as f64 / 10.0, b as f64 / 10.0, c as f64 / 10.0);
                 // lch
-                let mut pixel = [a as f32, b as f32, c as f32];
+                let mut pixel = [a, b, c];
                 convert_space(Space::SRGB, Space::CIELCH, &mut pixel);
                 assert!(pixel[2] <= 360.0, "lch H was {}", pixel[2]);
                 assert!(pixel[2] >= 0.0, "lch H was {}", pixel[2]);
                 // hsv
-                let mut pixel = [a as f32, b as f32, c as f32];
+                let mut pixel = [a, b, c];
                 convert_space(Space::SRGB, Space::HSV, &mut pixel);
                 assert!(pixel[0] <= 1.0, "hsv H was {}", pixel[0]);
                 assert!(pixel[0] >= 0.0, "hsv H was {}", pixel[0]);
@@ -644,14 +646,18 @@ fn str2col_perc_inval3() {
 
 #[test]
 fn str2space_base() {
-    let pix = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB).expect("STR2SPACE_BASE FAIL");
+    let pix: [f64; 3] = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB)
+        .expect("STR2SPACE_BASE FAIL")
+        .map(|v| v.into());
     let reference = [1.00000000, 0.00000000, 0.00000000];
     pix_cmp(&[pix], &[reference], 1e-3, &[]);
 }
 
 #[test]
 fn str2space_hex() {
-    let pix = str2space(" { #FF0000 } ", Space::OKLCH).expect("STR2SPACE_HEX FAIL");
+    let pix: [f64; 3] = str2space(" { #FF0000 } ", Space::OKLCH)
+        .expect("STR2SPACE_HEX FAIL")
+        .map(|v| v.into());
     let reference = [0.62792590, 0.25768453, 29.22319405];
     pix_cmp(&[pix], &[reference], 1e-3, &[]);
 }
