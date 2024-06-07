@@ -77,7 +77,7 @@ pub fn conversions(c: &mut Criterion) {
     } ));
 
     c.bench_function("srgb_eotf_inverse", |b| b.iter(|| {
-        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf_inverse(*n)));
+        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_oetf(*n)));
     } ));
 
     c.bench_function("full_to", |b| b.iter(|| {

@@ -809,7 +809,7 @@ macro_rules! graph {
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
-pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
+pub fn convert_space<T: DType>(from: Space, to: Space, pixel: &mut [T; 3]) {
     graph!(convert_space, pixel, from, to, op_single);
 }
 
@@ -817,7 +817,7 @@ pub fn convert_space(from: Space, to: Space, pixel: &mut [f32; 3]) {
 /// in the least possible moves.
 ///
 /// Caches conversion graph for faster iteration.
-pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
+pub fn convert_space_chunked<T: DType>(from: Space, to: Space, pixels: &mut [[T; 3]]) {
     graph!(convert_space_chunked, pixels, from, to, op_chunk);
 }
 
@@ -825,7 +825,7 @@ pub fn convert_space_chunked(from: Space, to: Space, pixels: &mut [[f32; 3]]) {
 /// in the least possible moves.
 ///
 /// Caches conversion graph for faster iteration and ignores remainder values in slice.
-pub fn convert_space_sliced(from: Space, to: Space, pixels: &mut [f32]) {
+pub fn convert_space_sliced<T: DType>(from: Space, to: Space, pixels: &mut [T]) {
     graph!(convert_space_sliced, pixels, from, to, op_inter);
 }
 
