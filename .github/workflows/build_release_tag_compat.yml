@@ -1,4 +1,4 @@
-name: Build Latest Release Tag
+name: Build Latest Release Tag (Compat)
 on:
   push:
     tags:
