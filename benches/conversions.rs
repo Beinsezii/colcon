@@ -17,7 +17,7 @@ pub fn conversions(c: &mut Criterion) {
     let pixels = pixels();
 
     c.bench_function("srgb_to_lrgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::srgb_to_lrgb(pixel.try_into().unwrap())));
+        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::srgb_to_lrgb::<_, 3>(pixel.try_into().unwrap())));
     } ));
 
     c.bench_function("lrgb_to_xyz", |b| b.iter(|| {

@@ -17,6 +17,13 @@ use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 // DType {{{
 
+/// 3 channels, or 4 with alpha. Alpha ignored.
+pub struct Channels<const N: usize>;
+/// 3 channels, or 4 with alpha. Alpha ignored.
+pub trait ValidChannels {}
+impl ValidChannels for Channels<3> {}
+impl ValidChannels for Channels<4> {}
+
 #[allow(missing_docs)]
 /// Convert an F32 ito any supported DType
 pub trait FromF32: Sized {
@@ -754,9 +761,10 @@ macro_rules! op_chunk {
 
 macro_rules! op_inter {
     ($func:ident, $data:expr) => {
-        $data
-            .chunks_exact_mut(3)
-            .for_each(|pixel| $func(pixel.try_into().unwrap()))
+        $data.chunks_exact_mut(3).for_each(|pixel| {
+            let pixel: &mut [T; 3] = unsafe { pixel.try_into().unwrap_unchecked() };
+            $func(pixel);
+        })
     };
 }
 
@@ -1037,8 +1045,11 @@ pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
 /// Convert from sRGB to Linear RGB by applying the sRGB EOTF
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
-pub fn srgb_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
-    pixel.iter_mut().for_each(|c| *c = srgb_eotf(*c));
+pub fn srgb_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.iter_mut().take(3).for_each(|c| *c = srgb_eotf(*c));
 }
 
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
