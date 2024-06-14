@@ -1,120 +1,136 @@
+use colcon::Space;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use colcon::{Space, convert_space};
 
-fn pixels() -> Box<[f32]> {
+fn pixels() -> Vec<f32> {
     let size = 512;
     let mut result = Vec::<f32>::with_capacity(size * size * 3);
     for x in 1..=size {
         for y in 1..=size {
             let n = (x as f32 / size as f32 / 2.0) + (y as f32 / size as f32 / 2.0);
-            result.extend_from_slice(&[n, n, n]);
+            result.extend_from_slice(&[n; 3]);
         }
     }
-    result.into_boxed_slice()
+    result
+}
+
+macro_rules! bench_three_generic {
+    ($c: expr, $pc: expr, $f: path, $id:literal, $n:literal, $t:ty, $ts:literal) => {
+        $c.bench_function(concat!($id, "_", $n, $ts), |b| {
+            b.iter(|| {
+                let mut pixels = $pc.clone();
+                black_box(pixels.iter_mut().for_each(|pixel| $f(pixel)));
+            })
+        })
+    };
+}
+
+macro_rules! bench_one_generic {
+    ($c: expr, $ps: expr, $f: path, $id:literal, $t:ty, $ts:literal) => {
+        $c.bench_function(concat!($id, "_", $ts), |b| {
+            b.iter(|| {
+                let mut pixels = $ps.clone();
+                black_box(pixels.iter_mut().for_each(|n| *n = $f(*n)));
+            })
+        })
+    };
+}
+
+macro_rules! bench_convert_generic {
+    ($c: expr, $ps: expr, $pc: expr, $from: expr, $to:expr, $id:literal, $n:literal, $t:ty, $ts:literal) => {
+        $c.bench_function(concat!($id, "_", $n, $ts), |b| {
+            b.iter(|| {
+                let mut pixels = $pc.clone();
+                black_box(
+                    pixels
+                        .iter_mut()
+                        .for_each(|pixel| colcon::convert_space($from, $to, pixel)),
+                );
+            })
+        });
+
+        $c.bench_function(concat!($id, "_", $n, $ts, "_chunk"), |b| {
+            b.iter(|| {
+                let mut pixels = $pc.clone();
+                black_box(colcon::convert_space_chunked($from, $to, &mut pixels));
+            })
+        });
+
+        $c.bench_function(concat!($id, "_", $n, $ts, "_slice"), |b| {
+            b.iter(|| {
+                let mut pixels = $ps.clone();
+                black_box(colcon::convert_space_sliced($from, $to, &mut pixels));
+            })
+        });
+    };
 }
 
 pub fn conversions(c: &mut Criterion) {
-    let pixels = pixels();
+    let pix_slice_f32: Box<[f32]> = pixels().into_boxed_slice();
 
-    c.bench_function("srgb_to_lrgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::srgb_to_lrgb(pixel.try_into().unwrap())));
-    } ));
+    let pix_slice_f64: Box<[f64]> = pixels()
+        .into_iter()
+        .map(|c| c.into())
+        .collect::<Vec<f64>>()
+        .into_boxed_slice();
 
-    c.bench_function("lrgb_to_xyz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_xyz(pixel.try_into().unwrap())));
-    } ));
+    let pix_chunk_3f32: Box<[[f32; 3]]> = pixels()
+        .chunks_exact(3)
+        .map(|c| c.try_into().unwrap())
+        .collect::<Vec<[f32; 3]>>()
+        .into_boxed_slice();
 
-    c.bench_function("xyz_to_cielab", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_cielab(pixel.try_into().unwrap())));
-    } ));
+    let pix_chunk_3f64: Box<[[f64; 3]]> = pixels()
+        .chunks_exact(3)
+        .map(|c| TryInto::<[f32; 3]>::try_into(c).unwrap().map(|n| n.into()))
+        .collect::<Vec<[f64; 3]>>()
+        .into_boxed_slice();
 
-    c.bench_function("xyz_to_oklab", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_oklab(pixel.try_into().unwrap())));
-    } ));
+    macro_rules! bench_three {
+        ($f: path, $id:literal) => {
+            bench_three_generic!(c, pix_chunk_3f32, $f, $id, 3, f32, "f32");
+            bench_three_generic!(c, pix_chunk_3f64, $f, $id, 3, f64, "f64");
+        };
+    }
 
-    c.bench_function("xyz_to_jzazbz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_jzazbz(pixel.try_into().unwrap())));
-    } ));
+    macro_rules! bench_one {
+        ($f: path, $id:literal) => {
+            bench_one_generic!(c, pix_slice_f32, $f, $id, f32, "f32");
+            bench_one_generic!(c, pix_slice_f32, $f, $id, f64, "f64");
+        };
+    }
 
-    c.bench_function("lab_to_lch", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lab_to_lch(pixel.try_into().unwrap())));
-    } ));
+    macro_rules! bench_convert {
+        ($from: expr, $to:expr, $id:literal) => {
+            bench_convert_generic!(c, pix_slice_f32, pix_chunk_3f32, $from, $to, $id, 3, f32, "f32");
+            bench_convert_generic!(c, pix_slice_f64, pix_chunk_3f64, $from, $to, $id, 3, f64, "f64");
+        };
+    }
 
-    c.bench_function("lch_to_lab", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lch_to_lab(pixel.try_into().unwrap())));
-    } ));
+    // Forward
+    bench_three!(colcon::srgb_to_lrgb, "srgb_to_lrgb");
+    bench_three!(colcon::lrgb_to_xyz, "lrgb_to_xyz");
+    bench_three!(colcon::xyz_to_cielab, "xyz_to_cielab");
+    bench_three!(colcon::xyz_to_oklab, "xyz_to_oklab");
+    bench_three!(colcon::xyz_to_jzazbz, "xyz_to_jzazbz");
+    bench_three!(colcon::lab_to_lch, "lab_to_lch");
+    bench_three!(colcon::srgb_to_hsv, "srgb_to_hsv");
+    // Backward
+    bench_three!(colcon::lch_to_lab, "lch_to_lab");
+    bench_three!(colcon::jzazbz_to_xyz, "jzazbz_to_xyz");
+    bench_three!(colcon::oklab_to_xyz, "oklab_to_xyz");
+    bench_three!(colcon::cielab_to_xyz, "cielab_to_xyz");
+    bench_three!(colcon::xyz_to_lrgb, "xyz_to_lrgb");
+    bench_three!(colcon::lrgb_to_srgb, "lrgb_to_srgb");
+    bench_three!(colcon::hsv_to_srgb, "hsv_to_srgb");
 
-    c.bench_function("jzazbz_to_xyz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::jzazbz_to_xyz(pixel.try_into().unwrap())));
-    } ));
+    bench_one!(colcon::srgb_eotf, "srgb_eotf");
+    bench_one!(colcon::srgb_oetf, "srgb_oetf");
+    bench_one!(colcon::pq_eotf, "pq_eotf");
+    bench_one!(colcon::pq_oetf, "pq_oetf");
 
-    c.bench_function("oklab_to_xyz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::oklab_to_xyz(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("cielab_to_xyz", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::cielab_to_xyz(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("xyz_to_lrgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::xyz_to_lrgb(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("lrgb_to_srgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::lrgb_to_srgb(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("srgb_to_hsv", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::srgb_to_hsv(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("hsv_to_srgb", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| colcon::hsv_to_srgb(pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("srgb_eotf", |b| b.iter(|| {
-        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_eotf(*n)));
-    } ));
-
-    c.bench_function("srgb_eotf_inverse", |b| b.iter(|| {
-        black_box(pixels.clone().iter_mut().for_each(|n| *n = colcon::srgb_oetf(*n)));
-    } ));
-
-    c.bench_function("full_to", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::SRGB, Space::CIELCH, pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("full_from", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::CIELCH, Space::SRGB, pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("full_to_chunk", |b| b.iter(|| {
-        black_box(colcon::convert_space_chunked(Space::CIELCH, Space::SRGB, pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
-    } ));
-
-    c.bench_function("full_from_chunk", |b| b.iter(|| {
-        black_box(colcon::convert_space_chunked(Space::CIELCH, Space::SRGB, &mut pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
-    } ));
-
-    c.bench_function("full_to_slice", |b| b.iter(|| {
-        black_box(colcon::convert_space_sliced(Space::CIELCH, Space::SRGB, &mut pixels.clone()));
-    } ));
-
-    c.bench_function("full_from_slice", |b| b.iter(|| {
-        black_box(colcon::convert_space_sliced(Space::CIELCH, Space::SRGB, &mut pixels.clone()));
-    } ));
-
-    c.bench_function("single", |b| b.iter(|| {
-        black_box(pixels.clone().chunks_exact_mut(3).for_each(|pixel| convert_space(Space::LRGB, Space::XYZ, pixel.try_into().unwrap())));
-    } ));
-
-    c.bench_function("single_chunk", |b| b.iter(|| {
-        black_box(colcon::convert_space_chunked(Space::LRGB, Space::XYZ, pixels.chunks_exact(3).map(|chunk| chunk.try_into().unwrap()).collect::<Vec<[f32; 3]>>().as_mut_slice()));
-    } ));
-
-    c.bench_function("single_slice", |b| b.iter(|| {
-        black_box(colcon::convert_space_sliced(Space::LRGB, Space::XYZ, &mut pixels.clone()));
-    } ));
+    bench_convert!(Space::SRGB, Space::CIELCH, "full_forward");
+    bench_convert!(Space::CIELCH, Space::SRGB, "full_backward");
+    bench_convert!(Space::LRGB, Space::XYZ, "minimal");
 }
 
 criterion_group!(benches, conversions);
