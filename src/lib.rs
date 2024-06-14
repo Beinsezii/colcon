@@ -762,7 +762,7 @@ macro_rules! op_chunk {
 macro_rules! op_inter {
     ($func:ident, $data:expr) => {
         $data.chunks_exact_mut(3).for_each(|pixel| {
-            let pixel: &mut [T; 3] = unsafe { pixel.try_into().unwrap_unchecked() };
+            let pixel: &mut [T; 3] = pixel.try_into().unwrap();
             $func(pixel);
         })
     };
