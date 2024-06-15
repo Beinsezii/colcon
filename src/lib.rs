@@ -1015,7 +1015,10 @@ pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
 }
 
 /// Convert from sRGB to HSV.
-pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
+pub fn srgb_to_hsv<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     let vmin = pixel[0].min(pixel[1]).min(pixel[2]);
     let vmax = pixel[0].max(pixel[1]).max(pixel[2]);
     let dmax = vmax - vmin;
@@ -1027,7 +1030,9 @@ pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
     } else {
         let s = dmax / vmax;
 
-        let [dr, dg, db] = pixel.map(|c| (((vmax - c) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax);
+        let dr = (((vmax - pixel[0]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let dg = (((vmax - pixel[1]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let db = (((vmax - pixel[2]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
 
         let h = if pixel[0] == vmax {
             db - dg
@@ -1039,7 +1044,9 @@ pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
         .rem_euclid(1.0.to_dt());
         (h, s)
     };
-    *pixel = [h, s, v];
+    pixel[0] = h;
+    pixel[1] = s;
+    pixel[2] = v;
 }
 
 /// Convert from sRGB to Linear RGB by applying the sRGB EOTF
@@ -1055,18 +1062,24 @@ where
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = matmul3(XYZ65_MAT, *pixel)
+pub fn lrgb_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = matmul3(XYZ65_MAT, [pixel[0], pixel[1], pixel[2]])
 }
 
 /// Convert from CIE XYZ to CIE LAB.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
-pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
+pub fn xyz_to_cielab<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     // Reverse D65 standard illuminant
-    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c = *c / d.to_dt());
+    pixel.iter_mut().take(3).zip(D65).for_each(|(c, d)| *c = *c / d.to_dt());
 
-    pixel.iter_mut().for_each(|c| {
+    pixel.iter_mut().take(3).for_each(|c| {
         if *c > T::ff32(LAB_DELTA).powi(3) {
             *c = c.cbrt()
         } else {
@@ -1074,7 +1087,7 @@ pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
         }
     });
 
-    *pixel = [
+    [pixel[0], pixel[1], pixel[2]] = [
         T::ff32(116.0).fma(pixel[1], T::ff32(-16.0)),
         T::ff32(500.0) * (pixel[0] - pixel[1]),
         T::ff32(200.0) * (pixel[1] - pixel[2]),
@@ -1084,16 +1097,22 @@ pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
 /// Convert from CIE XYZ to OKLAB.
 ///
 /// <https://bottosson.github.io/posts/oklab/>
-pub fn xyz_to_oklab<T: DType>(pixel: &mut [T; 3]) {
-    let mut lms = matmul3t(*pixel, OKLAB_M1);
+pub fn xyz_to_oklab<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    let mut lms = matmul3t([pixel[0], pixel[1], pixel[2]], OKLAB_M1);
     lms.iter_mut().for_each(|c| *c = c.cbrt());
-    *pixel = matmul3t(lms, OKLAB_M2);
+    [pixel[0], pixel[1], pixel[2]] = matmul3t(lms, OKLAB_M2);
 }
 
 /// Convert CIE XYZ to JzAzBz
 ///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
+pub fn xyz_to_jzazbz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     let mut lms = matmul3(
         JZAZBZ_M1,
         [
@@ -1107,11 +1126,9 @@ pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
 
     let lab = matmul3(JZAZBZ_M2, lms);
 
-    *pixel = [
-        (T::ff32(1.0 + JZAZBZ_D) * lab[0]) / lab[0].fma(JZAZBZ_D.to_dt(), 1.0.to_dt()) - JZAZBZ_D0.to_dt(),
-        lab[1],
-        lab[2],
-    ]
+    pixel[0] = (T::ff32(1.0 + JZAZBZ_D) * lab[0]) / lab[0].fma(JZAZBZ_D.to_dt(), 1.0.to_dt()) - JZAZBZ_D0.to_dt();
+    pixel[1] = lab[1];
+    pixel[2] = lab[2];
 }
 
 // Disabled for now as all the papers are paywalled
@@ -1124,7 +1141,10 @@ pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
 /// Convert LRGB to ICtCp. Unvalidated, WIP
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
-pub fn _lrgb_to_ictcp<T: DType>(pixel: &mut [T; 3]) {
+pub fn _lrgb_to_ictcp<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     // <https://www.itu.int/rec/R-REC-BT.2020/en>
     // let alpha = 1.09929682680944;
     // let beta = 0.018053968510807;
@@ -1134,17 +1154,20 @@ pub fn _lrgb_to_ictcp<T: DType>(pixel: &mut [T; 3]) {
     // };
     // pixel.iter_mut().for_each(|c| bt2020(c));
 
-    let mut lms = matmul3(ICTCP_M1, *pixel);
+    let mut lms = matmul3(ICTCP_M1, [pixel[0], pixel[1], pixel[2]]);
     // lms prime
     lms.iter_mut().for_each(|c| *c = pq_oetf(*c));
-    *pixel = matmul3(ICTCP_M2, lms);
+    [pixel[0], pixel[1], pixel[2]] = matmul3(ICTCP_M2, lms);
 }
 
 /// Converts an LAB based space to a cylindrical representation.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-pub fn lab_to_lch<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = [
+pub fn lab_to_lch<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = [
         pixel[0],
         (pixel[1].powi(2) + pixel[2].powi(2)).sqrt(),
         pixel[2].atan2(pixel[1]).to_degrees().rem_euclid(360.0.to_dt()),
@@ -1198,9 +1221,12 @@ pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
 }
 
 /// Convert from HSV to sRGB.
-pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
+pub fn hsv_to_srgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     if pixel[1] == 0.0.to_dt() {
-        *pixel = [pixel[2]; 3];
+        [pixel[0], pixel[1]] = [pixel[2]; 2];
     } else {
         let mut var_h = pixel[0] * 6.0.to_dt();
         if var_h == 6.0.to_dt() {
@@ -1211,7 +1237,7 @@ pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
         let var_2 = pixel[2] * (-var_h + var_i).fma(pixel[1], 1.0.to_dt());
         let var_3 = pixel[2] * (T::ff32(-1.0) + (var_h - var_i)).fma(pixel[1], T::ff32(1.0));
 
-        *pixel = if var_i == 0.0.to_dt() {
+        [pixel[0], pixel[1], pixel[2]] = if var_i == 0.0.to_dt() {
             [pixel[2], var_3, var_1]
         } else if var_i == 1.0.to_dt() {
             [var_2, pixel[2], var_1]
@@ -1230,28 +1256,37 @@ pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
 /// Convert from Linear RGB to sRGB by applying the inverse sRGB EOTF
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
-pub fn lrgb_to_srgb<T: DType>(pixel: &mut [T; 3]) {
-    pixel.iter_mut().for_each(|c| *c = srgb_oetf(*c));
+pub fn lrgb_to_srgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.iter_mut().take(3).for_each(|c| *c = srgb_oetf(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
-pub fn xyz_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = matmul3(XYZ65_MAT_INV, *pixel)
+pub fn xyz_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = matmul3(XYZ65_MAT_INV, [pixel[0], pixel[1], pixel[2]])
 }
 
 /// Convert from CIE LAB to CIE XYZ.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
-pub fn cielab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = [
+pub fn cielab_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = [
         (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() + pixel[1] / 500.0.to_dt(),
         (pixel[0] + 16.0.to_dt()) / 116.0.to_dt(),
         (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() - pixel[2] / 200.0.to_dt(),
     ];
 
-    pixel.iter_mut().for_each(|c| {
+    pixel.iter_mut().take(3).for_each(|c| {
         if *c > LAB_DELTA.to_dt() {
             *c = c.powi(3)
         } else {
@@ -1259,22 +1294,28 @@ pub fn cielab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
         }
     });
 
-    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c = *c * d.to_dt());
+    pixel.iter_mut().take(3).zip(D65).for_each(|(c, d)| *c = *c * d.to_dt());
 }
 
 /// Convert from OKLAB to CIE XYZ.
 ///
 /// <https://bottosson.github.io/posts/oklab/>
-pub fn oklab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
-    let mut lms = matmul3t(*pixel, OKLAB_M2_INV);
+pub fn oklab_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    let mut lms = matmul3t([pixel[0], pixel[1], pixel[2]], OKLAB_M2_INV);
     lms.iter_mut().for_each(|c| *c = c.powi(3));
-    *pixel = matmul3t(lms, OKLAB_M1_INV);
+    [pixel[0], pixel[1], pixel[2]] = matmul3t(lms, OKLAB_M1_INV);
 }
 
 /// Convert JzAzBz to CIE XYZ
 ///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
+pub fn jzazbz_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     let mut lms = matmul3(
         JZAZBZ_M2_INV,
         [
@@ -1287,7 +1328,7 @@ pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
 
     lms.iter_mut().for_each(|c| *c = pqz_eotf(*c));
 
-    *pixel = matmul3(JZAZBZ_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = matmul3(JZAZBZ_M1_INV, lms);
 
     pixel[0] = pixel[2].fma((JZAZBZ_B - 1.0).to_dt(), pixel[0]) / JZAZBZ_B.to_dt();
     pixel[1] = pixel[0].fma((JZAZBZ_G - 1.0).to_dt(), pixel[1]) / JZAZBZ_G.to_dt();
@@ -1304,19 +1345,25 @@ pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
-pub fn _ictcp_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
+pub fn _ictcp_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     // lms prime
-    let mut lms = matmul3(ICTCP_M2_INV, *pixel);
+    let mut lms = matmul3(ICTCP_M2_INV, [pixel[0], pixel[1], pixel[2]]);
     // non-prime lms
     lms.iter_mut().for_each(|c| *c = pq_eotf(*c));
-    *pixel = matmul3(ICTCP_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = matmul3(ICTCP_M1_INV, lms);
 }
 
 /// Retrieves an LAB based space from its cylindrical representation.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-pub fn lch_to_lab<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = [
+pub fn lch_to_lab<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = [
         pixel[0],
         pixel[1] * pixel[2].to_radians().cos(),
         pixel[1] * pixel[2].to_radians().sin(),
