@@ -348,6 +348,32 @@ fn tree_jump() {
 }
 
 #[test]
+fn alpha_untouch() {
+    let mut pixel = [1.0, 2.0, 3.0, 4.0f64];
+    for f in [
+        srgb_to_hsv,
+        hsv_to_srgb,
+        srgb_to_lrgb,
+        lrgb_to_xyz,
+        xyz_to_cielab,
+        xyz_to_oklab,
+        xyz_to_jzazbz,
+        lab_to_lch,
+        _lrgb_to_ictcp,
+        _ictcp_to_lrgb,
+        lrgb_to_srgb,
+        xyz_to_lrgb,
+        cielab_to_xyz,
+        oklab_to_xyz,
+        jzazbz_to_xyz,
+        lch_to_lab,
+    ] {
+        f(&mut pixel);
+        assert_eq!(pixel[3].to_bits(), 4.0_f64.to_bits());
+    }
+}
+
+#[test]
 fn sliced() {
     let mut pixel: Vec<f64> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
         acc.extend_from_slice(it);
