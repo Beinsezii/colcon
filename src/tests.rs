@@ -369,8 +369,25 @@ fn alpha_untouch() {
         lch_to_lab,
     ] {
         f(&mut pixel);
-        assert_eq!(pixel[3].to_bits(), 4.0_f64.to_bits());
+        assert_eq!(pixel[3].to_bits(), 4.0_f64.to_bits(), "{:?}", f);
     }
+    convert_space(Space::SRGB, Space::CIELCH, &mut pixel);
+    assert_eq!(pixel[3].to_bits(), 4.0_f64.to_bits());
+    let mut chunks = [pixel, pixel, pixel];
+    convert_space_chunked(Space::CIELCH, Space::SRGB, &mut chunks);
+    chunks
+        .iter()
+        .for_each(|c| assert_eq!(c[3].to_bits(), 4.0_f64.to_bits(), "alpha_untouch_chunked"));
+    let mut slice = [pixel, pixel, pixel].iter().fold(Vec::<f64>::new(), |mut acc, it| {
+        acc.extend_from_slice(it.as_slice());
+        acc
+    });
+    convert_space_sliced::<_, 4>(Space::CIELCH, Space::SRGB, &mut slice);
+    slice
+        .iter()
+        .skip(3)
+        .step_by(4)
+        .for_each(|n| assert_eq!(n.to_bits(), 4.0_f64.to_bits(), "alpha_untouch_sliced"));
 }
 
 #[test]
@@ -379,7 +396,7 @@ fn sliced() {
         acc.extend_from_slice(it);
         acc
     });
-    convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
+    convert_space_sliced::<_, 3>(Space::SRGB, Space::CIELCH, &mut pixel);
     pix_cmp(
         &pixel
             .chunks_exact(3)
@@ -398,7 +415,7 @@ fn sliced_odd() {
         acc
     });
     pixel.push(1234.5678);
-    convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
+    convert_space_sliced::<_, 3>(Space::SRGB, Space::CIELCH, &mut pixel);
     pix_cmp(
         &pixel
             .chunks_exact(3)
@@ -415,7 +432,7 @@ fn sliced_odd() {
 fn sliced_smol() {
     let pixels = [1.0, 0.0];
     let mut smol = pixels.clone();
-    convert_space_sliced(Space::SRGB, Space::CIELCH, &mut smol);
+    convert_space_sliced::<_, 3>(Space::SRGB, Space::CIELCH, &mut smol);
     assert_eq!(pixels, smol);
 }
 

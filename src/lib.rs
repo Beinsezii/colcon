@@ -761,8 +761,8 @@ macro_rules! op_chunk {
 
 macro_rules! op_inter {
     ($func:ident, $data:expr) => {
-        $data.chunks_exact_mut(3).for_each(|pixel| {
-            let pixel: &mut [T; 3] = pixel.try_into().unwrap();
+        $data.chunks_exact_mut(N).for_each(|pixel| {
+            let pixel: &mut [T; N] = pixel.try_into().unwrap();
             $func(pixel);
         })
     };
@@ -821,7 +821,10 @@ macro_rules! graph {
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
-pub fn convert_space<T: DType>(from: Space, to: Space, pixel: &mut [T; 3]) {
+pub fn convert_space<T: DType, const N: usize>(from: Space, to: Space, pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     graph!(convert_space, pixel, from, to, op_single);
 }
 
@@ -829,7 +832,10 @@ pub fn convert_space<T: DType>(from: Space, to: Space, pixel: &mut [T; 3]) {
 /// in the least possible moves.
 ///
 /// Caches conversion graph for faster iteration.
-pub fn convert_space_chunked<T: DType>(from: Space, to: Space, pixels: &mut [[T; 3]]) {
+pub fn convert_space_chunked<T: DType, const N: usize>(from: Space, to: Space, pixels: &mut [[T; N]])
+where
+    Channels<N>: ValidChannels,
+{
     graph!(convert_space_chunked, pixels, from, to, op_chunk);
 }
 
@@ -837,7 +843,10 @@ pub fn convert_space_chunked<T: DType>(from: Space, to: Space, pixels: &mut [[T;
 /// in the least possible moves.
 ///
 /// Caches conversion graph for faster iteration and ignores remainder values in slice.
-pub fn convert_space_sliced<T: DType>(from: Space, to: Space, pixels: &mut [T]) {
+pub fn convert_space_sliced<T: DType, const N: usize>(from: Space, to: Space, pixels: &mut [T])
+where
+    Channels<N>: ValidChannels,
+{
     graph!(convert_space_sliced, pixels, from, to, op_inter);
 }
 
@@ -885,13 +894,8 @@ pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixe
             core::slice::from_raw_parts_mut(pixels, len)
         }
     };
-    convert_space_sliced(from, to, pixels);
+    convert_space_sliced::<_, 3>(from, to, pixels);
     0
-}
-
-/// Same as `convert_space`, ignores the 4th value in `pixel`.
-pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
-    unsafe { convert_space(from, to, pixel.get_unchecked_mut(0..3).try_into().unwrap_unchecked()) }
 }
 
 // ### Convert Space ### }}}
