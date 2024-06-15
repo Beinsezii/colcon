@@ -3,6 +3,9 @@ use super::*;
 const HEX: &str = "#3359F2";
 const IRGB: [u8; 3] = [51, 89, 242];
 
+const HEXA: &str = "#3359F259";
+const IRGBA: [u8; 4] = [51, 89, 242, 89];
+
 // ### COLOUR-REFS ### {{{
 
 const SRGB: &'static [[f64; 3]] = &[
@@ -214,10 +217,24 @@ fn irgb_to() {
 }
 
 #[test]
+fn irgb_to_alpha() {
+    assert_eq!(IRGBA, srgb_to_irgb([0.2, 0.35, 0.95, 0.35]))
+}
+
+#[test]
 fn irgb_from() {
     let mut srgb = irgb_to_srgb(IRGB);
+    // Round decimal to hundredths
     srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
     assert_eq!([0.2, 0.35, 0.95], srgb)
+}
+
+#[test]
+fn irgb_from_alpha() {
+    let mut srgb = irgb_to_srgb(IRGBA);
+    // Round decimal to hundredths
+    srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
+    assert_eq!([0.2, 0.35, 0.95, 0.35], srgb)
 }
 
 #[test]
@@ -225,10 +242,20 @@ fn hex_to() {
     assert_eq!(HEX, irgb_to_hex(IRGB))
 }
 
+//#[test]
+//fn hex_to_alpha() {
+//    assert_eq!(HEXA, irgb_to_hex(IRGBA))
+//}
+
 #[test]
 fn hex_from() {
     assert_eq!(IRGB, hex_to_irgb(HEX).unwrap())
 }
+
+//#[test]
+//fn hex_from_alpha() {
+//    assert_eq!(IRGBA, hex_to_irgb(HEXA).unwrap())
+//}
 
 #[test]
 fn hsv_forwards() {

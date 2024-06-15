@@ -997,12 +997,11 @@ pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
 // ### FORWARD ### {{{
 
 /// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
-pub fn srgb_to_irgb(pixel: [f32; 3]) -> [u8; 3] {
-    [
-        ((pixel[0] * 255.0).max(0.0).min(255.0) as u8),
-        ((pixel[1] * 255.0).max(0.0).min(255.0) as u8),
-        ((pixel[2] * 255.0).max(0.0).min(255.0) as u8),
-    ]
+pub fn srgb_to_irgb<const N: usize>(pixel: [f32; N]) -> [u8; N]
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.map(|c| ((c * 255.0).max(0.0).min(255.0) as u8))
 }
 
 /// Create a hexadecimal string from integer RGB.
@@ -1183,12 +1182,8 @@ where
 // ### BACKWARD ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
-pub fn irgb_to_srgb(pixel: [u8; 3]) -> [f32; 3] {
-    [
-        pixel[0] as f32 / 255.0,
-        pixel[1] as f32 / 255.0,
-        pixel[2] as f32 / 255.0,
-    ]
+pub fn irgb_to_srgb<const N: usize>(pixel: [u8; N]) -> [f32; N] {
+    pixel.map(|c| c as f32 / 255.0)
 }
 
 /// Create integer RGB set from hex string.
