@@ -1182,7 +1182,10 @@ where
 // ### BACKWARD ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
-pub fn irgb_to_srgb<const N: usize>(pixel: [u8; N]) -> [f32; N] {
+pub fn irgb_to_srgb<const N: usize>(pixel: [u8; N]) -> [f32; N]
+where
+    Channels<N>: ValidChannels,
+{
     pixel.map(|c| c as f32 / 255.0)
 }
 
