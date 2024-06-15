@@ -3,7 +3,7 @@ use super::*;
 const HEX: &str = "#3359F2";
 const IRGB: [u8; 3] = [51, 89, 242];
 
-const HEXA: &str = "#3359F259";
+const _HEXA: &str = "#3359F259";
 const IRGBA: [u8; 4] = [51, 89, 242, 89];
 
 // ### COLOUR-REFS ### {{{

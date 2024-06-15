@@ -429,7 +429,10 @@ pub const HIGH2023_MEAN: f32 = 20.956442;
 
 /// Returns difference in perceptual lightness based on hue, aka the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-pub fn hk_high2023<T: DType>(lch: &[T; 3]) -> T {
+pub fn hk_high2023<T: DType, const N: usize>(lch: &[T; N]) -> T
+where
+    Channels<N>: ValidChannels,
+{
     let fby: T = T::ff32(K_HIGH2022[0]).fma(
         ((lch[2] - 90.0.to_dt()) / 2.0.to_dt()).to_radians().sin().abs(),
         K_HIGH2022[1].to_dt(),
@@ -446,7 +449,10 @@ pub fn hk_high2023<T: DType>(lch: &[T; 3]) -> T {
 
 /// Compensates CIE LCH's L value for the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-pub fn hk_high2023_comp<T: DType>(lch: &mut [T; 3]) {
+pub fn hk_high2023_comp<T: DType, const N: usize>(lch: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     lch[0] = lch[0] + (T::ff32(HIGH2023_MEAN) - hk_high2023(lch)) * (lch[1] / 100.0.to_dt())
 }
 
@@ -1390,26 +1396,42 @@ macro_rules! cdef1 {
 }
 
 macro_rules! cdef3 {
-    ($base:ident, $f32:ident, $f64:ident) => {
+    ($base:ident, $f32_3:ident, $f64_3:ident, $f32_4:ident, $f64_4:ident) => {
         #[no_mangle]
-        extern "C" fn $f32(pixel: &mut [f32; 3]) {
+        extern "C" fn $f32_3(pixel: &mut [f32; 3]) {
             $base(pixel)
         }
         #[no_mangle]
-        extern "C" fn $f64(pixel: &mut [f64; 3]) {
+        extern "C" fn $f64_3(pixel: &mut [f64; 3]) {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f32_4(pixel: &mut [f32; 4]) {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f64_4(pixel: &mut [f64; 4]) {
             $base(pixel)
         }
     };
 }
 
 macro_rules! cdef31 {
-    ($base:ident, $f32:ident, $f64:ident) => {
+    ($base:ident, $f32_3:ident, $f64_3:ident, $f32_4:ident, $f64_4:ident) => {
         #[no_mangle]
-        extern "C" fn $f32(pixel: &[f32; 3]) -> f32 {
+        extern "C" fn $f32_3(pixel: &[f32; 3]) -> f32 {
             $base(pixel)
         }
         #[no_mangle]
-        extern "C" fn $f64(pixel: &[f64; 3]) -> f64 {
+        extern "C" fn $f64_3(pixel: &[f64; 3]) -> f64 {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f32_4(pixel: &[f32; 4]) -> f32 {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f64_4(pixel: &[f64; 4]) -> f64 {
             $base(pixel)
         }
     };
@@ -1424,25 +1446,135 @@ cdef1!(pq_oetf, pq_oetf_f32, pq_oetf_f64);
 cdef1!(pqz_oetf, pqz_oetf_f32, pqz_oetf_f64);
 
 // Helmholtz-Kohlrausch
-cdef31!(hk_high2023, hk_high2023_f32, hk_high2023_f64);
-cdef3!(hk_high2023_comp, hk_high2023_comp_f32, hk_high2023_comp_f64);
+cdef31!(
+    hk_high2023,
+    hk_high2023_3f32,
+    hk_high2023_3f64,
+    hk_high2023_4f32,
+    hk_high2023_4f64
+);
+cdef3!(
+    hk_high2023_comp,
+    hk_high2023_comp_3f32,
+    hk_high2023_comp_3f64,
+    hk_high2023_comp_4f32,
+    hk_high2023_comp_4f64
+);
 
 // Forward
-cdef3!(srgb_to_hsv, srgb_to_hsv_f32, srgb_to_hsv_f64);
-cdef3!(srgb_to_lrgb, srgb_to_lrgb_f32, srgb_to_lrgb_f64);
-cdef3!(lrgb_to_xyz, lrgb_to_xyz_f32, lrgb_to_xyz_f64);
-cdef3!(xyz_to_cielab, xyz_to_cielab_f32, xyz_to_cielab_f64);
-cdef3!(xyz_to_oklab, xyz_to_oklab_f32, xyz_to_oklab_f64);
-cdef3!(xyz_to_jzazbz, xyz_to_jzazbz_f32, xyz_to_jzazbz_f64);
-cdef3!(lab_to_lch, lab_to_lch_f32, lab_to_lch_f64);
+cdef3!(
+    srgb_to_hsv,
+    srgb_to_hsv_3f32,
+    srgb_to_hsv_3f64,
+    srgb_to_hsv_4f32,
+    srgb_to_hsv_4f64
+);
+cdef3!(
+    srgb_to_lrgb,
+    srgb_to_lrgb_3f32,
+    srgb_to_lrgb_3f64,
+    srgb_to_lrgb_4f32,
+    srgb_to_lrgb_4f64
+);
+cdef3!(
+    lrgb_to_xyz,
+    lrgb_to_xyz_3f32,
+    lrgb_to_xyz_3f64,
+    lrgb_to_xyz_4f32,
+    lrgb_to_xyz_4f64
+);
+cdef3!(
+    xyz_to_cielab,
+    xyz_to_cielab_3f32,
+    xyz_to_cielab_3f64,
+    xyz_to_cielab_4f32,
+    xyz_to_cielab_4f64
+);
+cdef3!(
+    xyz_to_oklab,
+    xyz_to_oklab_3f32,
+    xyz_to_oklab_3f64,
+    xyz_to_oklab_4f32,
+    xyz_to_oklab_4f64
+);
+cdef3!(
+    xyz_to_jzazbz,
+    xyz_to_jzazbz_3f32,
+    xyz_to_jzazbz_3f64,
+    xyz_to_jzazbz_4f32,
+    xyz_to_jzazbz_4f64
+);
+cdef3!(
+    lab_to_lch,
+    lab_to_lch_3f32,
+    lab_to_lch_3f64,
+    lab_to_lch_4f32,
+    lab_to_lch_4f64
+);
+cdef3!(
+    _lrgb_to_ictcp,
+    _lrgb_to_ictcp_3f32,
+    _lrgb_to_ictcp_3f64,
+    _lrgb_to_ictcp_4f32,
+    _lrgb_to_ictcp_4f64
+);
 
 // Backward
-cdef3!(hsv_to_srgb, hsv_to_srgb_f32, hsv_to_srgb_f64);
-cdef3!(lrgb_to_srgb, lrgb_to_srgb_f32, lrgb_to_srgb_f64);
-cdef3!(xyz_to_lrgb, xyz_to_lrgb_f32, xyz_to_lrgb_f64);
-cdef3!(cielab_to_xyz, cielab_to_xyz_f32, cielab_to_xyz_f64);
-cdef3!(oklab_to_xyz, oklab_to_xyz_f32, oklab_to_xyz_f64);
-cdef3!(jzazbz_to_xyz, jzazbz_to_xyz_f32, jzazbz_to_xyz_f64);
-cdef3!(lch_to_lab, lch_to_lab_f32, lch_to_lab_f64);
+cdef3!(
+    hsv_to_srgb,
+    hsv_to_srgb_3f32,
+    hsv_to_srgb_3f64,
+    hsv_to_srgb_4f32,
+    hsv_to_srgb_4f64
+);
+cdef3!(
+    lrgb_to_srgb,
+    lrgb_to_srgb_3f32,
+    lrgb_to_srgb_3f64,
+    lrgb_to_srgb_4f32,
+    lrgb_to_srgb_4f64
+);
+cdef3!(
+    xyz_to_lrgb,
+    xyz_to_lrgb_3f32,
+    xyz_to_lrgb_3f64,
+    xyz_to_lrgb_4f32,
+    xyz_to_lrgb_4f64
+);
+cdef3!(
+    cielab_to_xyz,
+    cielab_to_xyz_3f32,
+    cielab_to_xyz_3f64,
+    cielab_to_xyz_4f32,
+    cielab_to_xyz_4f64
+);
+cdef3!(
+    oklab_to_xyz,
+    oklab_to_xyz_3f32,
+    oklab_to_xyz_3f64,
+    oklab_to_xyz_4f32,
+    oklab_to_xyz_4f64
+);
+cdef3!(
+    jzazbz_to_xyz,
+    jzazbz_to_xyz_3f32,
+    jzazbz_to_xyz_3f64,
+    jzazbz_to_xyz_4f32,
+    jzazbz_to_xyz_4f64
+);
+cdef3!(
+    lch_to_lab,
+    lch_to_lab_3f32,
+    lch_to_lab_3f64,
+    lch_to_lab_4f32,
+    lch_to_lab_4f64
+);
+cdef3!(
+    _ictcp_to_lrgb,
+    _ictcp_to_lrgb_3f32,
+    _ictcp_to_lrgb_3f64,
+    _ictcp_to_lrgb_4f32,
+    _ictcp_to_lrgb_4f64
+);
 
 // }}}
