@@ -928,15 +928,18 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 /// ```
 /// use colcon::{str2col, Space};
 ///
-/// assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])));
-/// assert_eq!(str2col("lch:50;20;120"), Some((Space::CIELCH, [50.0, 20.0, 120.0])));
-/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), Some((Space::OKLAB, [0.2, 0.6, -0.5])));
-/// assert_eq!(str2col("srgb 100% 50% 25%"), Some((Space::SRGB, [1.0, 0.5, 0.25])));
+/// assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])));
+/// assert_eq!(str2col("lch:50;20;120"), Some((Space::CIELCH, [50.0f32, 20.0, 120.0])));
+/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), Some((Space::OKLAB, [0.2f32, 0.6, -0.5])));
+/// assert_eq!(str2col("srgb 100% 50% 25%"), Some((Space::SRGB, [1.0f32, 0.5, 0.25])));
 /// ```
-pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
+pub fn str2col<T: DType, const N: usize>(mut s: &str) -> Option<(Space, [T; N])>
+where
+    Channels<N>: ValidChannels,
+{
     s = rm_paren(s.trim());
     let mut space = Space::SRGB;
-    let mut result = [f32::NAN; 3];
+    let mut result = [f32::NAN; N];
 
     // Return hex if valid
     if let Ok(irgb) = hex_to_irgb(s) {
@@ -959,19 +962,26 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
         .filter(|s| !s.is_empty())
         .enumerate()
     {
-        if n > 2 {
+        if n > 3 {
             return None;
+        } else if n >= result.len() {
+            continue;
         } else if let Ok(value) = split.parse::<f32>() {
             result[n] = value;
         } else if split.ends_with('%') {
-            if let Ok(value) = split[0..(split.len() - 1)].parse::<f32>() {
+            if let Ok(percent) = split[0..(split.len() - 1)].parse::<f32>() {
+                // alpha
+                if n == 3 {
+                    result[n] = percent / 100.0;
+                    continue;
+                }
                 let (q0, q100) = (space.srgb_quant0()[n], space.srgb_quant100()[n]);
                 if q0.is_finite() && q100.is_finite() {
-                    result[n] = value / 100.0 * (q100 - q0) + q0;
+                    result[n] = percent / 100.0 * (q100 - q0) + q0;
                 } else if Space::UCS_POLAR.contains(&space) {
-                    result[n] = value / 100.0 * 360.0
+                    result[n] = percent / 100.0 * 360.0
                 } else if space == Space::HSV {
-                    result[n] = value / 100.0
+                    result[n] = percent / 100.0
                 } else {
                     return None;
                 }
@@ -982,8 +992,8 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
             return None;
         }
     }
-    if result.iter().all(|v| v.is_finite()) {
-        Some((space, result))
+    if result.iter().take(3).all(|v| v.is_finite()) {
+        Some((space, result.map(|c| c.to_dt())))
     } else {
         None
     }
@@ -992,7 +1002,10 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
 /// Convert a string into a pixel of the requested Space.
 ///
 /// Shorthand for str2col() -> convert_space()
-pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
+pub fn str2space<T: DType, const N: usize>(s: &str, to: Space) -> Option<[T; N]>
+where
+    Channels<N>: ValidChannels,
+{
     str2col(s).map(|(from, mut col)| {
         convert_space(from, to, &mut col);
         col
@@ -1192,11 +1205,11 @@ where
 // ### BACKWARD ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
-pub fn irgb_to_srgb<const N: usize>(pixel: [u8; N]) -> [f32; N]
+pub fn irgb_to_srgb<T: DType, const N: usize>(pixel: [u8; N]) -> [T; N]
 where
     Channels<N>: ValidChannels,
 {
-    pixel.map(|c| c as f32 / 255.0)
+    pixel.map(|c| T::ff32(c as f32 / 255.0))
 }
 
 /// Create integer RGB set from hex string.

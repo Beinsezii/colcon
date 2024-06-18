@@ -223,7 +223,7 @@ fn irgb_to_alpha() {
 
 #[test]
 fn irgb_from() {
-    let mut srgb = irgb_to_srgb(IRGB);
+    let mut srgb = irgb_to_srgb::<f32, 3>(IRGB);
     // Round decimal to hundredths
     srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
     assert_eq!([0.2, 0.35, 0.95], srgb)
@@ -231,7 +231,7 @@ fn irgb_from() {
 
 #[test]
 fn irgb_from_alpha() {
-    let mut srgb = irgb_to_srgb(IRGBA);
+    let mut srgb = irgb_to_srgb::<f32, 4>(IRGBA);
     // Round decimal to hundredths
     srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
     assert_eq!([0.2, 0.35, 0.95, 0.35], srgb)
@@ -583,100 +583,112 @@ fn space_strings() {
 // ### Str2Col ### {{{
 #[test]
 fn str2col_base() {
-    assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_tight() {
-    assert_eq!(str2col("0.2,0.5,0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2,0.5,0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_lop() {
-    assert_eq!(str2col("0.2,0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2,0.5, 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_bare() {
-    assert_eq!(str2col("0.2 0.5 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2 0.5 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_bare_fat() {
-    assert_eq!(str2col("  0.2   0.5     0.6 "), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("  0.2   0.5     0.6 "), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_paren() {
-    assert_eq!(str2col("(0.2 0.5 0.6)"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("(0.2 0.5 0.6)"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_paren2() {
-    assert_eq!(str2col("{ 0.2 : 0.5 : 0.6 }"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("{ 0.2 : 0.5 : 0.6 }"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_none() {
-    assert_eq!(str2col("  0.2   0.5     f"), None)
+    assert_eq!(str2col::<f32, 3>("  0.2   0.5     f"), None)
 }
 
 #[test]
 fn str2col_base_none2() {
-    assert_eq!(str2col("0.2*0.5 0.6"), None)
+    assert_eq!(str2col::<f32, 3>("0.2*0.5 0.6"), None)
 }
 
 #[test]
 fn str2col_base_paren_none() {
-    assert_eq!(str2col("(0.2 0.5 0.6"), None)
+    assert_eq!(str2col::<f32, 3>("(0.2 0.5 0.6"), None)
 }
 
 #[test]
 fn str2col_base_paren_none2() {
-    assert_eq!(str2col("0.2 0.5 0.6}"), None)
+    assert_eq!(str2col::<f32, 3>("0.2 0.5 0.6}"), None)
 }
 
 #[test]
 fn str2col_lch() {
-    assert_eq!(str2col("lch(50, 30, 160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch(50, 30, 160)"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_space() {
-    assert_eq!(str2col("lch 50, 30, 160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch 50, 30, 160"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_colon() {
-    assert_eq!(str2col("lch:50:30:160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(str2col("lch:50:30:160"), Some((Space::CIELCH, [50.0f32, 30.0, 160.0])))
 }
 
 #[test]
 fn str2col_lch_semicolon() {
-    assert_eq!(str2col("lch;50;30;160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(str2col("lch;50;30;160"), Some((Space::CIELCH, [50.0f32, 30.0, 160.0])))
 }
 
 #[test]
 fn str2col_lch_mixed() {
-    assert_eq!(str2col("lch; (50,30,160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch; (50,30,160)"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_mixed2() {
-    assert_eq!(str2col("lch(50; 30; 160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch(50; 30; 160)"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_mixed3() {
     assert_eq!(
         str2col("lch   (50   30  160)"),
-        Some((Space::CIELCH, [50.0, 30.0, 160.0]))
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
     )
 }
 
 #[test]
 fn str2col_hex() {
-    assert_eq!(str2col(HEX), Some((Space::SRGB, irgb_to_srgb(IRGB))))
+    assert_eq!(str2col(HEX), Some((Space::SRGB, irgb_to_srgb::<f32, 3>(IRGB))))
 }
 
 #[test]
@@ -685,7 +697,11 @@ fn str2col_perc100() {
         str2col("oklch 100% 100% 100%"),
         Some((
             Space::OKLCH,
-            [Space::OKLCH.srgb_quant100()[0], Space::OKLCH.srgb_quant100()[1], 360.0]
+            [
+                Space::OKLCH.srgb_quant100()[0],
+                Space::OKLCH.srgb_quant100()[1],
+                360.0f32
+            ]
         ))
     )
 }
@@ -699,7 +715,7 @@ fn str2col_perc50() {
             [
                 (Space::OKLCH.srgb_quant0()[0] + Space::OKLCH.srgb_quant100()[0]) / 2.0,
                 (Space::OKLCH.srgb_quant0()[1] + Space::OKLCH.srgb_quant100()[1]) / 2.0,
-                180.0,
+                180.0f32,
             ]
         ))
     )
@@ -711,7 +727,7 @@ fn str2col_perc0() {
         str2col("oklch 0% 0% 0%"),
         Some((
             Space::OKLCH,
-            [Space::OKLCH.srgb_quant0()[0], Space::OKLCH.srgb_quant0()[1], 0.0]
+            [Space::OKLCH.srgb_quant0()[0], Space::OKLCH.srgb_quant0()[1], 0.0f32]
         ))
     )
 }
@@ -722,40 +738,54 @@ fn str2col_perc_mix() {
         str2col("oklab 0.5 100.000% 0%"),
         Some((
             Space::OKLAB,
-            [0.5, Space::OKLAB.srgb_quant100()[1], Space::OKLAB.srgb_quant0()[2]]
+            [0.5f32, Space::OKLAB.srgb_quant100()[1], Space::OKLAB.srgb_quant0()[2]]
         ))
     )
 }
 
 #[test]
 fn str2col_perc_inval() {
-    assert_eq!(str2col("oklab 0.5 100 % 0%"), None)
+    assert_eq!(str2col::<f32, 3>("oklab 0.5 100 % 0%"), None);
+    assert_eq!(str2col::<f32, 3>("oklab 0.5% %100% 0%"), None);
+    assert_eq!(str2col::<f32, 3>("oklab 0.5 100%% 0%"), None);
 }
 
 #[test]
-fn str2col_perc_inval2() {
-    assert_eq!(str2col("oklab 0.5% %100% 0%"), None)
-}
-
-#[test]
-fn str2col_perc_inval3() {
-    assert_eq!(str2col("oklab 0.5 100%% 0%"), None)
+fn str2col_alpha() {
+    assert_eq!(
+        str2col("srgb 0, 0.5, 0.75, 1.0"),
+        Some((Space::SRGB, [0f32, 0.5, 0.75, 1.0]))
+    );
+    assert_eq!(
+        str2col("srgb 0, 0.5, 0.75, 1.0"),
+        Some((Space::SRGB, [0f32, 0.5, 0.75]))
+    );
+    assert_eq!(
+        str2col("srgb 10%, 20%, 50%, 80%"),
+        Some((Space::SRGB, [0.1f32, 0.2, 0.5, 0.8]))
+    );
+    assert_eq!(
+        str2col("srgb 10%, 20%, 50%, 80%"),
+        Some((Space::SRGB, [0.1f32, 0.2, 0.5]))
+    );
+    let mut will_nan = str2col::<f32, 4>("srgb 0, 0.5, 0.75").unwrap();
+    if will_nan.1[3].is_nan() {
+        will_nan.1[3] = 0.12345
+    }
+    assert_eq!(will_nan, (Space::SRGB, [0f32, 0.5, 0.75, 0.12345]));
 }
 
 #[test]
 fn str2space_base() {
-    let pix: [f64; 3] = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB)
-        .expect("STR2SPACE_BASE FAIL")
-        .map(|v| v.into());
+    let pix: [f64; 3] =
+        str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB).expect("STR2SPACE_BASE FAIL");
     let reference = [1.00000000, 0.00000000, 0.00000000];
     pix_cmp(&[pix], &[reference], 1e-3, &[]);
 }
 
 #[test]
 fn str2space_hex() {
-    let pix: [f64; 3] = str2space(" { #FF0000 } ", Space::OKLCH)
-        .expect("STR2SPACE_HEX FAIL")
-        .map(|v| v.into());
+    let pix: [f64; 3] = str2space(" { #FF0000 } ", Space::OKLCH).expect("STR2SPACE_HEX FAIL");
     let reference = [0.62792590, 0.25768453, 29.22319405];
     pix_cmp(&[pix], &[reference], 1e-3, &[]);
 }
