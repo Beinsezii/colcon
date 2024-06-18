@@ -939,7 +939,7 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     let mut result = [f32::NAN; 3];
 
     // Return hex if valid
-    if let Ok(irgb) = hex_to_irgb(s) {
+    if let Ok(irgb) = hex_to_irgb::<3, 255>(s) {
         return Some((space, irgb_to_srgb(irgb)));
     }
 
@@ -1011,8 +1011,12 @@ where
 }
 
 /// Create a hexadecimal string from integer RGB.
-pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
-    let mut hex = String::from("#");
+pub fn irgb_to_hex<const N: usize>(pixel: [u8; N]) -> String
+where
+    Channels<N>: ValidChannels,
+{
+    let mut hex = String::with_capacity(N * 2 + 1);
+    hex.push('#');
 
     pixel.into_iter().for_each(|c| {
         [c / 16, c % 16]
@@ -1196,36 +1200,46 @@ where
 }
 
 /// Create integer RGB set from hex string.
-pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
-    let hex = hex.trim().to_ascii_uppercase();
-
-    let mut chars = hex.chars();
+/// `DEFAULT` is only used when 4 channels are requested but 3 is given.
+/// < 3 pairs or > 4 pairs will `Err`
+pub fn hex_to_irgb<const N: usize, const DEFAULT: u8>(hex: &str) -> Result<[u8; N], String>
+where
+    Channels<N>: ValidChannels,
+{
+    let mut chars = hex.trim().chars();
     if chars.as_str().starts_with('#') {
         chars.next();
     }
 
-    let ids: Vec<u32> = if chars.as_str().len() == 6 {
-        chars
+    let ids: Vec<u32> = match chars.as_str().len() {
+        6 | 8 => chars
             .map(|c| {
                 let u = c as u32;
+                // numeric
                 if 57 >= u && u >= 48 {
                     Ok(u - 48)
+                // uppercase
                 } else if 70 >= u && u >= 65 {
                     Ok(u - 55)
+                // lowercase
+                } else if 102 >= u && u >= 97 {
+                    Ok(u - 87)
                 } else {
-                    Err(String::from("Hex character ") + &String::from(c) + " out of bounds")
+                    Err(String::from("Hex character '") + &String::from(c) + "' out of bounds")
                 }
             })
-            .collect()
-    } else {
-        Err(String::from("Incorrect hex length!"))
+            .collect(),
+        n => Err(String::from("Incorrect hex length ") + &n.to_string()),
     }?;
 
-    Ok([
-        ((ids[0]) * 16 + ids[1]) as u8,
-        ((ids[2]) * 16 + ids[3]) as u8,
-        ((ids[4]) * 16 + ids[5]) as u8,
-    ])
+    let mut result = [DEFAULT; N];
+
+    ids.chunks(2)
+        .take(result.len())
+        .enumerate()
+        .for_each(|(n, chunk)| result[n] = ((chunk[0]) * 16 + chunk[1]) as u8);
+
+    Ok(result)
 }
 
 /// Convert from HSV to sRGB.
