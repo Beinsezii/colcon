@@ -939,7 +939,7 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
     let mut result = [f32::NAN; 3];
 
     // Return hex if valid
-    if let Ok(irgb) = hex_to_irgb::<3, 255>(s) {
+    if let Ok(irgb) = hex_to_irgb(s) {
         return Some((space, irgb_to_srgb(irgb)));
     }
 
@@ -1201,8 +1201,7 @@ where
 
 /// Create integer RGB set from hex string.
 /// `DEFAULT` is only used when 4 channels are requested but 3 is given.
-/// < 3 pairs or > 4 pairs will `Err`
-pub fn hex_to_irgb<const N: usize, const DEFAULT: u8>(hex: &str) -> Result<[u8; N], String>
+pub fn hex_to_irgb_default<const N: usize, const DEFAULT: u8>(hex: &str) -> Result<[u8; N], String>
 where
     Channels<N>: ValidChannels,
 {
@@ -1240,6 +1239,16 @@ where
         .for_each(|(n, chunk)| result[n] = ((chunk[0]) * 16 + chunk[1]) as u8);
 
     Ok(result)
+}
+
+/// Create integer RGB set from hex string.
+/// Will default to 255 for alpha if 4 channels requested but hex length is 6.
+/// Use `hex_to_irgb_default` to customize this.
+pub fn hex_to_irgb<const N: usize>(hex: &str) -> Result<[u8; N], String>
+where
+    Channels<N>: ValidChannels,
+{
+    hex_to_irgb_default::<N, 255>(hex)
 }
 
 /// Convert from HSV to sRGB.

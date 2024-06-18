@@ -249,14 +249,17 @@ fn hex_to_alpha() {
 
 #[test]
 fn hex_from() {
-    assert_eq!(IRGB, hex_to_irgb::<3, 255>(HEX).unwrap());
-    assert_eq!(IRGB, hex_to_irgb::<3, 255>(HEXA).unwrap());
+    assert_eq!(IRGB, hex_to_irgb(HEX).unwrap());
+    assert_eq!(IRGB, hex_to_irgb(HEXA).unwrap());
 }
 
 #[test]
 fn hex_from_alpha() {
-    assert_eq!([IRGB[0], IRGB[1], IRGB[2], 123], hex_to_irgb::<4, 123>(HEX).unwrap());
-    assert_eq!(IRGBA, hex_to_irgb::<4, 255>(HEXA).unwrap());
+    assert_eq!(
+        [IRGB[0], IRGB[1], IRGB[2], 123],
+        hex_to_irgb_default::<4, 123>(HEX).unwrap()
+    );
+    assert_eq!(IRGBA, hex_to_irgb(HEXA).unwrap());
 }
 
 #[test]
@@ -271,14 +274,14 @@ fn hex_validations() {
         "  ABCDEF     ",
         "  #ABCDEF     ",
     ] {
-        assert!(hex_to_irgb::<3, 255>(hex).is_ok(), "NOT VALID 3: '{}'", hex);
-        assert!(hex_to_irgb::<4, 255>(hex).is_ok(), "NOT VALID 4: '{}'", hex);
+        assert!(hex_to_irgb::<3>(hex).is_ok(), "NOT VALID 3: '{}'", hex);
+        assert!(hex_to_irgb::<4>(hex).is_ok(), "NOT VALID 4: '{}'", hex);
     }
     for hex in [
         "", "#", "#5F", "#ABCDEG", "#abcdeg", "#ABCDEFF", "#abcdeg", "##ABCDEF", "ABCDEF#",
     ] {
-        assert!(hex_to_irgb::<3, 255>(hex).is_err(), "NOT INVALID 3: '{}'", hex);
-        assert!(hex_to_irgb::<4, 255>(hex).is_err(), "NOT INVALID 4: '{}'", hex);
+        assert!(hex_to_irgb::<3>(hex).is_err(), "NOT INVALID 3: '{}'", hex);
+        assert!(hex_to_irgb::<4>(hex).is_err(), "NOT INVALID 4: '{}'", hex);
     }
 }
 
