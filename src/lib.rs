@@ -1,8 +1,11 @@
 #![warn(missing_docs)]
 
-//! Simple colorspace conversions in pure Rust.
+//! Comprehensive colorspace conversions in pure Rust
 //!
-//! All conversions are in-place, except when converting to/from integer and hexadecimal.
+//! The working data structure is `[DType; ValidChannels]`, where DType is one of
+//! `f32` or `f64` and ValidChannels is either 3 or 4, with the 4th channel representing
+//! alpha and being unprocessed outside of typing conversions
+//!
 //! Formulae are generally taken from their research papers or Wikipedia and validated against
 //! colour-science <https://github.com/colour-science/colour>
 //!
@@ -17,9 +20,11 @@ use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 // DType {{{
 
-/// 3 channels, or 4 with alpha. Alpha ignored.
+/// 3 channels, or 4 with alpha.
+/// Alpha ignored during space conversions.
 pub struct Channels<const N: usize>;
-/// 3 channels, or 4 with alpha. Alpha ignored.
+/// 3 channels, or 4 with alpha.
+/// Alpha ignored during space conversions.
 pub trait ValidChannels {}
 impl ValidChannels for Channels<3> {}
 impl ValidChannels for Channels<4> {}
@@ -921,7 +926,7 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 ///
 /// Can additionally be set as a % of SDR range.
 ///
-/// Does not support alpha channel.
+/// Alpha will be NaN if only 3 values are provided.
 ///
 /// # Examples
 ///
