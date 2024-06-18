@@ -1,5 +1,5 @@
 # ColCon 0.9.0
-Simple colorspace conversions in Rust.
+Comprehensive colorspace conversions in Rust.
 
 ## Features
   * Pure Rust, no dependencies.

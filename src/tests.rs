@@ -3,6 +3,9 @@ use super::*;
 const HEX: &str = "#3359F2";
 const IRGB: [u8; 3] = [51, 89, 242];
 
+const HEXA: &str = "#3359F259";
+const IRGBA: [u8; 4] = [51, 89, 242, 89];
+
 // ### COLOUR-REFS ### {{{
 
 const SRGB: &'static [[f64; 3]] = &[
@@ -214,10 +217,24 @@ fn irgb_to() {
 }
 
 #[test]
+fn irgb_to_alpha() {
+    assert_eq!(IRGBA, srgb_to_irgb([0.2, 0.35, 0.95, 0.35]))
+}
+
+#[test]
 fn irgb_from() {
-    let mut srgb = irgb_to_srgb(IRGB);
+    let mut srgb = irgb_to_srgb::<f32, 3>(IRGB);
+    // Round decimal to hundredths
     srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
     assert_eq!([0.2, 0.35, 0.95], srgb)
+}
+
+#[test]
+fn irgb_from_alpha() {
+    let mut srgb = irgb_to_srgb::<f32, 4>(IRGBA);
+    // Round decimal to hundredths
+    srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
+    assert_eq!([0.2, 0.35, 0.95, 0.35], srgb)
 }
 
 #[test]
@@ -226,8 +243,46 @@ fn hex_to() {
 }
 
 #[test]
+fn hex_to_alpha() {
+    assert_eq!(HEXA, irgb_to_hex(IRGBA))
+}
+
+#[test]
 fn hex_from() {
-    assert_eq!(IRGB, hex_to_irgb(HEX).unwrap())
+    assert_eq!(IRGB, hex_to_irgb(HEX).unwrap());
+    assert_eq!(IRGB, hex_to_irgb(HEXA).unwrap());
+}
+
+#[test]
+fn hex_from_alpha() {
+    assert_eq!(
+        [IRGB[0], IRGB[1], IRGB[2], 123],
+        hex_to_irgb_default::<4, 123>(HEX).unwrap()
+    );
+    assert_eq!(IRGBA, hex_to_irgb(HEXA).unwrap());
+}
+
+#[test]
+fn hex_validations() {
+    for hex in [
+        "#ABCDEF",
+        "#abcdef",
+        "#ABCDEF01",
+        "#abcdef01",
+        "#ABCDEF",
+        "ABCDEF",
+        "  ABCDEF     ",
+        "  #ABCDEF     ",
+    ] {
+        assert!(hex_to_irgb::<3>(hex).is_ok(), "NOT VALID 3: '{}'", hex);
+        assert!(hex_to_irgb::<4>(hex).is_ok(), "NOT VALID 4: '{}'", hex);
+    }
+    for hex in [
+        "", "#", "#5F", "#ABCDEG", "#abcdeg", "#ABCDEFF", "#abcdeg", "##ABCDEF", "ABCDEF#",
+    ] {
+        assert!(hex_to_irgb::<3>(hex).is_err(), "NOT INVALID 3: '{}'", hex);
+        assert!(hex_to_irgb::<4>(hex).is_err(), "NOT INVALID 4: '{}'", hex);
+    }
 }
 
 #[test]
@@ -348,12 +403,55 @@ fn tree_jump() {
 }
 
 #[test]
+fn alpha_untouch() {
+    let mut pixel = [1.0, 2.0, 3.0, 4.0f64];
+    for f in [
+        srgb_to_hsv,
+        hsv_to_srgb,
+        srgb_to_lrgb,
+        lrgb_to_xyz,
+        xyz_to_cielab,
+        xyz_to_oklab,
+        xyz_to_jzazbz,
+        lab_to_lch,
+        _lrgb_to_ictcp,
+        _ictcp_to_lrgb,
+        lrgb_to_srgb,
+        xyz_to_lrgb,
+        cielab_to_xyz,
+        oklab_to_xyz,
+        jzazbz_to_xyz,
+        lch_to_lab,
+    ] {
+        f(&mut pixel);
+        assert_eq!(pixel[3].to_bits(), 4.0_f64.to_bits(), "{:?}", f);
+    }
+    convert_space(Space::SRGB, Space::CIELCH, &mut pixel);
+    assert_eq!(pixel[3].to_bits(), 4.0_f64.to_bits());
+    let mut chunks = [pixel, pixel, pixel];
+    convert_space_chunked(Space::CIELCH, Space::SRGB, &mut chunks);
+    chunks
+        .iter()
+        .for_each(|c| assert_eq!(c[3].to_bits(), 4.0_f64.to_bits(), "alpha_untouch_chunked"));
+    let mut slice = [pixel, pixel, pixel].iter().fold(Vec::<f64>::new(), |mut acc, it| {
+        acc.extend_from_slice(it.as_slice());
+        acc
+    });
+    convert_space_sliced::<_, 4>(Space::CIELCH, Space::SRGB, &mut slice);
+    slice
+        .iter()
+        .skip(3)
+        .step_by(4)
+        .for_each(|n| assert_eq!(n.to_bits(), 4.0_f64.to_bits(), "alpha_untouch_sliced"));
+}
+
+#[test]
 fn sliced() {
     let mut pixel: Vec<f64> = SRGB.iter().fold(Vec::new(), |mut acc, it| {
         acc.extend_from_slice(it);
         acc
     });
-    convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
+    convert_space_sliced::<_, 3>(Space::SRGB, Space::CIELCH, &mut pixel);
     pix_cmp(
         &pixel
             .chunks_exact(3)
@@ -372,7 +470,7 @@ fn sliced_odd() {
         acc
     });
     pixel.push(1234.5678);
-    convert_space_sliced(Space::SRGB, Space::CIELCH, &mut pixel);
+    convert_space_sliced::<_, 3>(Space::SRGB, Space::CIELCH, &mut pixel);
     pix_cmp(
         &pixel
             .chunks_exact(3)
@@ -389,7 +487,7 @@ fn sliced_odd() {
 fn sliced_smol() {
     let pixels = [1.0, 0.0];
     let mut smol = pixels.clone();
-    convert_space_sliced(Space::SRGB, Space::CIELCH, &mut smol);
+    convert_space_sliced::<_, 3>(Space::SRGB, Space::CIELCH, &mut smol);
     assert_eq!(pixels, smol);
 }
 
@@ -485,100 +583,112 @@ fn space_strings() {
 // ### Str2Col ### {{{
 #[test]
 fn str2col_base() {
-    assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_tight() {
-    assert_eq!(str2col("0.2,0.5,0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2,0.5,0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_lop() {
-    assert_eq!(str2col("0.2,0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2,0.5, 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_bare() {
-    assert_eq!(str2col("0.2 0.5 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("0.2 0.5 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_bare_fat() {
-    assert_eq!(str2col("  0.2   0.5     0.6 "), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("  0.2   0.5     0.6 "), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_paren() {
-    assert_eq!(str2col("(0.2 0.5 0.6)"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("(0.2 0.5 0.6)"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_paren2() {
-    assert_eq!(str2col("{ 0.2 : 0.5 : 0.6 }"), Some((Space::SRGB, [0.2, 0.5, 0.6])))
+    assert_eq!(str2col("{ 0.2 : 0.5 : 0.6 }"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])))
 }
 
 #[test]
 fn str2col_base_none() {
-    assert_eq!(str2col("  0.2   0.5     f"), None)
+    assert_eq!(str2col::<f32, 3>("  0.2   0.5     f"), None)
 }
 
 #[test]
 fn str2col_base_none2() {
-    assert_eq!(str2col("0.2*0.5 0.6"), None)
+    assert_eq!(str2col::<f32, 3>("0.2*0.5 0.6"), None)
 }
 
 #[test]
 fn str2col_base_paren_none() {
-    assert_eq!(str2col("(0.2 0.5 0.6"), None)
+    assert_eq!(str2col::<f32, 3>("(0.2 0.5 0.6"), None)
 }
 
 #[test]
 fn str2col_base_paren_none2() {
-    assert_eq!(str2col("0.2 0.5 0.6}"), None)
+    assert_eq!(str2col::<f32, 3>("0.2 0.5 0.6}"), None)
 }
 
 #[test]
 fn str2col_lch() {
-    assert_eq!(str2col("lch(50, 30, 160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch(50, 30, 160)"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_space() {
-    assert_eq!(str2col("lch 50, 30, 160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch 50, 30, 160"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_colon() {
-    assert_eq!(str2col("lch:50:30:160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(str2col("lch:50:30:160"), Some((Space::CIELCH, [50.0f32, 30.0, 160.0])))
 }
 
 #[test]
 fn str2col_lch_semicolon() {
-    assert_eq!(str2col("lch;50;30;160"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(str2col("lch;50;30;160"), Some((Space::CIELCH, [50.0f32, 30.0, 160.0])))
 }
 
 #[test]
 fn str2col_lch_mixed() {
-    assert_eq!(str2col("lch; (50,30,160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch; (50,30,160)"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_mixed2() {
-    assert_eq!(str2col("lch(50; 30; 160)"), Some((Space::CIELCH, [50.0, 30.0, 160.0])))
+    assert_eq!(
+        str2col("lch(50; 30; 160)"),
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
+    )
 }
 
 #[test]
 fn str2col_lch_mixed3() {
     assert_eq!(
         str2col("lch   (50   30  160)"),
-        Some((Space::CIELCH, [50.0, 30.0, 160.0]))
+        Some((Space::CIELCH, [50.0f32, 30.0, 160.0]))
     )
 }
 
 #[test]
 fn str2col_hex() {
-    assert_eq!(str2col(HEX), Some((Space::SRGB, irgb_to_srgb(IRGB))))
+    assert_eq!(str2col(HEX), Some((Space::SRGB, irgb_to_srgb::<f32, 3>(IRGB))))
 }
 
 #[test]
@@ -587,7 +697,11 @@ fn str2col_perc100() {
         str2col("oklch 100% 100% 100%"),
         Some((
             Space::OKLCH,
-            [Space::OKLCH.srgb_quant100()[0], Space::OKLCH.srgb_quant100()[1], 360.0]
+            [
+                Space::OKLCH.srgb_quant100()[0],
+                Space::OKLCH.srgb_quant100()[1],
+                360.0f32
+            ]
         ))
     )
 }
@@ -601,7 +715,7 @@ fn str2col_perc50() {
             [
                 (Space::OKLCH.srgb_quant0()[0] + Space::OKLCH.srgb_quant100()[0]) / 2.0,
                 (Space::OKLCH.srgb_quant0()[1] + Space::OKLCH.srgb_quant100()[1]) / 2.0,
-                180.0,
+                180.0f32,
             ]
         ))
     )
@@ -613,7 +727,7 @@ fn str2col_perc0() {
         str2col("oklch 0% 0% 0%"),
         Some((
             Space::OKLCH,
-            [Space::OKLCH.srgb_quant0()[0], Space::OKLCH.srgb_quant0()[1], 0.0]
+            [Space::OKLCH.srgb_quant0()[0], Space::OKLCH.srgb_quant0()[1], 0.0f32]
         ))
     )
 }
@@ -624,40 +738,54 @@ fn str2col_perc_mix() {
         str2col("oklab 0.5 100.000% 0%"),
         Some((
             Space::OKLAB,
-            [0.5, Space::OKLAB.srgb_quant100()[1], Space::OKLAB.srgb_quant0()[2]]
+            [0.5f32, Space::OKLAB.srgb_quant100()[1], Space::OKLAB.srgb_quant0()[2]]
         ))
     )
 }
 
 #[test]
 fn str2col_perc_inval() {
-    assert_eq!(str2col("oklab 0.5 100 % 0%"), None)
+    assert_eq!(str2col::<f32, 3>("oklab 0.5 100 % 0%"), None);
+    assert_eq!(str2col::<f32, 3>("oklab 0.5% %100% 0%"), None);
+    assert_eq!(str2col::<f32, 3>("oklab 0.5 100%% 0%"), None);
 }
 
 #[test]
-fn str2col_perc_inval2() {
-    assert_eq!(str2col("oklab 0.5% %100% 0%"), None)
-}
-
-#[test]
-fn str2col_perc_inval3() {
-    assert_eq!(str2col("oklab 0.5 100%% 0%"), None)
+fn str2col_alpha() {
+    assert_eq!(
+        str2col("srgb 0, 0.5, 0.75, 1.0"),
+        Some((Space::SRGB, [0f32, 0.5, 0.75, 1.0]))
+    );
+    assert_eq!(
+        str2col("srgb 0, 0.5, 0.75, 1.0"),
+        Some((Space::SRGB, [0f32, 0.5, 0.75]))
+    );
+    assert_eq!(
+        str2col("srgb 10%, 20%, 50%, 80%"),
+        Some((Space::SRGB, [0.1f32, 0.2, 0.5, 0.8]))
+    );
+    assert_eq!(
+        str2col("srgb 10%, 20%, 50%, 80%"),
+        Some((Space::SRGB, [0.1f32, 0.2, 0.5]))
+    );
+    let mut will_nan = str2col::<f32, 4>("srgb 0, 0.5, 0.75").unwrap();
+    if will_nan.1[3].is_nan() {
+        will_nan.1[3] = 0.12345
+    }
+    assert_eq!(will_nan, (Space::SRGB, [0f32, 0.5, 0.75, 0.12345]));
 }
 
 #[test]
 fn str2space_base() {
-    let pix: [f64; 3] = str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB)
-        .expect("STR2SPACE_BASE FAIL")
-        .map(|v| v.into());
+    let pix: [f64; 3] =
+        str2space("oklch : 0.62792590, 0.25768453, 29.22319405", Space::SRGB).expect("STR2SPACE_BASE FAIL");
     let reference = [1.00000000, 0.00000000, 0.00000000];
     pix_cmp(&[pix], &[reference], 1e-3, &[]);
 }
 
 #[test]
 fn str2space_hex() {
-    let pix: [f64; 3] = str2space(" { #FF0000 } ", Space::OKLCH)
-        .expect("STR2SPACE_HEX FAIL")
-        .map(|v| v.into());
+    let pix: [f64; 3] = str2space(" { #FF0000 } ", Space::OKLCH).expect("STR2SPACE_HEX FAIL");
     let reference = [0.62792590, 0.25768453, 29.22319405];
     pix_cmp(&[pix], &[reference], 1e-3, &[]);
 }

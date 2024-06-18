@@ -1,13 +1,13 @@
 use colcon::Space;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-fn pixels() -> Vec<f32> {
+fn pixels<const N: usize>() -> Vec<f32> {
     let size = 512;
     let mut result = Vec::<f32>::with_capacity(size * size * 3);
     for x in 1..=size {
         for y in 1..=size {
             let n = (x as f32 / size as f32 / 2.0) + (y as f32 / size as f32 / 2.0);
-            result.extend_from_slice(&[n; 3]);
+            result.extend_from_slice(&[n; N]);
         }
     }
     result
@@ -58,51 +58,74 @@ macro_rules! bench_convert_generic {
         $c.bench_function(concat!($id, "_", $n, $ts, "_slice"), |b| {
             b.iter(|| {
                 let mut pixels = $ps.clone();
-                black_box(colcon::convert_space_sliced($from, $to, &mut pixels));
+                black_box(colcon::convert_space_sliced::<_, 3>($from, $to, &mut pixels));
             })
         });
     };
 }
 
 pub fn conversions(c: &mut Criterion) {
-    let pix_slice_f32: Box<[f32]> = pixels().into_boxed_slice();
+    let pix_slice_3f32: Box<[f32]> = pixels::<3>().into_boxed_slice();
+    let pix_slice_4f32: Box<[f32]> = pixels::<4>().into_boxed_slice();
 
-    let pix_slice_f64: Box<[f64]> = pixels()
+    let pix_slice_3f64: Box<[f64]> = pixels::<3>()
         .into_iter()
         .map(|c| c.into())
         .collect::<Vec<f64>>()
         .into_boxed_slice();
 
-    let pix_chunk_3f32: Box<[[f32; 3]]> = pixels()
+    let pix_slice_4f64: Box<[f64]> = pixels::<4>()
+        .into_iter()
+        .map(|c| c.into())
+        .collect::<Vec<f64>>()
+        .into_boxed_slice();
+
+    let pix_chunk_3f32: Box<[[f32; 3]]> = pixels::<3>()
         .chunks_exact(3)
         .map(|c| c.try_into().unwrap())
         .collect::<Vec<[f32; 3]>>()
         .into_boxed_slice();
 
-    let pix_chunk_3f64: Box<[[f64; 3]]> = pixels()
+    let pix_chunk_4f32: Box<[[f32; 4]]> = pixels::<4>()
+        .chunks_exact(4)
+        .map(|c| c.try_into().unwrap())
+        .collect::<Vec<[f32; 4]>>()
+        .into_boxed_slice();
+
+    let pix_chunk_3f64: Box<[[f64; 3]]> = pixels::<3>()
         .chunks_exact(3)
         .map(|c| TryInto::<[f32; 3]>::try_into(c).unwrap().map(|n| n.into()))
         .collect::<Vec<[f64; 3]>>()
+        .into_boxed_slice();
+
+    let pix_chunk_4f64: Box<[[f64; 4]]> = pixels::<4>()
+        .chunks_exact(4)
+        .map(|c| TryInto::<[f32; 4]>::try_into(c).unwrap().map(|n| n.into()))
+        .collect::<Vec<[f64; 4]>>()
         .into_boxed_slice();
 
     macro_rules! bench_three {
         ($f: path, $id:literal) => {
             bench_three_generic!(c, pix_chunk_3f32, $f, $id, 3, f32, "f32");
             bench_three_generic!(c, pix_chunk_3f64, $f, $id, 3, f64, "f64");
+            bench_three_generic!(c, pix_chunk_4f32, $f, $id, 4, f32, "f32");
+            bench_three_generic!(c, pix_chunk_4f64, $f, $id, 4, f64, "f64");
         };
     }
 
     macro_rules! bench_one {
         ($f: path, $id:literal) => {
-            bench_one_generic!(c, pix_slice_f32, $f, $id, f32, "f32");
-            bench_one_generic!(c, pix_slice_f32, $f, $id, f64, "f64");
+            bench_one_generic!(c, pix_slice_3f32, $f, $id, f32, "f32");
+            bench_one_generic!(c, pix_slice_3f32, $f, $id, f64, "f64");
         };
     }
 
     macro_rules! bench_convert {
         ($from: expr, $to:expr, $id:literal) => {
-            bench_convert_generic!(c, pix_slice_f32, pix_chunk_3f32, $from, $to, $id, 3, f32, "f32");
-            bench_convert_generic!(c, pix_slice_f64, pix_chunk_3f64, $from, $to, $id, 3, f64, "f64");
+            bench_convert_generic!(c, pix_slice_3f32, pix_chunk_3f32, $from, $to, $id, 3, f32, "f32");
+            bench_convert_generic!(c, pix_slice_3f64, pix_chunk_3f64, $from, $to, $id, 3, f64, "f64");
+            bench_convert_generic!(c, pix_slice_4f32, pix_chunk_4f32, $from, $to, $id, 4, f32, "f32");
+            bench_convert_generic!(c, pix_slice_4f64, pix_chunk_4f64, $from, $to, $id, 4, f64, "f64");
         };
     }
 

@@ -1,8 +1,11 @@
 #![warn(missing_docs)]
 
-//! Simple colorspace conversions in pure Rust.
+//! Comprehensive colorspace conversions in pure Rust
 //!
-//! All conversions are in-place, except when converting to/from integer and hexadecimal.
+//! The working data structure is `[DType; ValidChannels]`, where DType is one of
+//! `f32` or `f64` and ValidChannels is either 3 or 4, with the 4th channel representing
+//! alpha and being unprocessed outside of typing conversions
+//!
 //! Formulae are generally taken from their research papers or Wikipedia and validated against
 //! colour-science <https://github.com/colour-science/colour>
 //!
@@ -16,6 +19,15 @@ use core::ffi::{c_char, CStr};
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 // DType {{{
+
+/// 3 channels, or 4 with alpha.
+/// Alpha ignored during space conversions.
+pub struct Channels<const N: usize>;
+/// 3 channels, or 4 with alpha.
+/// Alpha ignored during space conversions.
+pub trait ValidChannels {}
+impl ValidChannels for Channels<3> {}
+impl ValidChannels for Channels<4> {}
 
 #[allow(missing_docs)]
 /// Convert an F32 ito any supported DType
@@ -422,7 +434,10 @@ pub const HIGH2023_MEAN: f32 = 20.956442;
 
 /// Returns difference in perceptual lightness based on hue, aka the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-pub fn hk_high2023<T: DType>(lch: &[T; 3]) -> T {
+pub fn hk_high2023<T: DType, const N: usize>(lch: &[T; N]) -> T
+where
+    Channels<N>: ValidChannels,
+{
     let fby: T = T::ff32(K_HIGH2022[0]).fma(
         ((lch[2] - 90.0.to_dt()) / 2.0.to_dt()).to_radians().sin().abs(),
         K_HIGH2022[1].to_dt(),
@@ -439,7 +454,10 @@ pub fn hk_high2023<T: DType>(lch: &[T; 3]) -> T {
 
 /// Compensates CIE LCH's L value for the Helmholtz-Kohlrausch effect.
 /// High et al 2023 implementation.
-pub fn hk_high2023_comp<T: DType>(lch: &mut [T; 3]) {
+pub fn hk_high2023_comp<T: DType, const N: usize>(lch: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     lch[0] = lch[0] + (T::ff32(HIGH2023_MEAN) - hk_high2023(lch)) * (lch[1] / 100.0.to_dt())
 }
 
@@ -754,9 +772,10 @@ macro_rules! op_chunk {
 
 macro_rules! op_inter {
     ($func:ident, $data:expr) => {
-        $data
-            .chunks_exact_mut(3)
-            .for_each(|pixel| $func(pixel.try_into().unwrap()))
+        $data.chunks_exact_mut(N).for_each(|pixel| {
+            let pixel: &mut [T; N] = pixel.try_into().unwrap();
+            $func(pixel);
+        })
     };
 }
 
@@ -813,7 +832,10 @@ macro_rules! graph {
 
 /// Runs conversion functions to convert `pixel` from one `Space` to another
 /// in the least possible moves.
-pub fn convert_space<T: DType>(from: Space, to: Space, pixel: &mut [T; 3]) {
+pub fn convert_space<T: DType, const N: usize>(from: Space, to: Space, pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     graph!(convert_space, pixel, from, to, op_single);
 }
 
@@ -821,7 +843,10 @@ pub fn convert_space<T: DType>(from: Space, to: Space, pixel: &mut [T; 3]) {
 /// in the least possible moves.
 ///
 /// Caches conversion graph for faster iteration.
-pub fn convert_space_chunked<T: DType>(from: Space, to: Space, pixels: &mut [[T; 3]]) {
+pub fn convert_space_chunked<T: DType, const N: usize>(from: Space, to: Space, pixels: &mut [[T; N]])
+where
+    Channels<N>: ValidChannels,
+{
     graph!(convert_space_chunked, pixels, from, to, op_chunk);
 }
 
@@ -829,7 +854,10 @@ pub fn convert_space_chunked<T: DType>(from: Space, to: Space, pixels: &mut [[T;
 /// in the least possible moves.
 ///
 /// Caches conversion graph for faster iteration and ignores remainder values in slice.
-pub fn convert_space_sliced<T: DType>(from: Space, to: Space, pixels: &mut [T]) {
+pub fn convert_space_sliced<T: DType, const N: usize>(from: Space, to: Space, pixels: &mut [T])
+where
+    Channels<N>: ValidChannels,
+{
     graph!(convert_space_sliced, pixels, from, to, op_inter);
 }
 
@@ -877,13 +905,8 @@ pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixe
             core::slice::from_raw_parts_mut(pixels, len)
         }
     };
-    convert_space_sliced(from, to, pixels);
+    convert_space_sliced::<_, 3>(from, to, pixels);
     0
-}
-
-/// Same as `convert_space`, ignores the 4th value in `pixel`.
-pub fn convert_space_alpha(from: Space, to: Space, pixel: &mut [f32; 4]) {
-    unsafe { convert_space(from, to, pixel.get_unchecked_mut(0..3).try_into().unwrap_unchecked()) }
 }
 
 // ### Convert Space ### }}}
@@ -903,22 +926,25 @@ fn rm_paren<'a>(s: &'a str) -> &'a str {
 ///
 /// Can additionally be set as a % of SDR range.
 ///
-/// Does not support alpha channel.
+/// Alpha will be NaN if only 3 values are provided.
 ///
 /// # Examples
 ///
 /// ```
 /// use colcon::{str2col, Space};
 ///
-/// assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2, 0.5, 0.6])));
-/// assert_eq!(str2col("lch:50;20;120"), Some((Space::CIELCH, [50.0, 20.0, 120.0])));
-/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), Some((Space::OKLAB, [0.2, 0.6, -0.5])));
-/// assert_eq!(str2col("srgb 100% 50% 25%"), Some((Space::SRGB, [1.0, 0.5, 0.25])));
+/// assert_eq!(str2col("0.2, 0.5, 0.6"), Some((Space::SRGB, [0.2f32, 0.5, 0.6])));
+/// assert_eq!(str2col("lch:50;20;120"), Some((Space::CIELCH, [50.0f32, 20.0, 120.0])));
+/// assert_eq!(str2col("oklab(0.2, 0.6, -0.5)"), Some((Space::OKLAB, [0.2f32, 0.6, -0.5])));
+/// assert_eq!(str2col("srgb 100% 50% 25%"), Some((Space::SRGB, [1.0f32, 0.5, 0.25])));
 /// ```
-pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
+pub fn str2col<T: DType, const N: usize>(mut s: &str) -> Option<(Space, [T; N])>
+where
+    Channels<N>: ValidChannels,
+{
     s = rm_paren(s.trim());
     let mut space = Space::SRGB;
-    let mut result = [f32::NAN; 3];
+    let mut result = [f32::NAN; N];
 
     // Return hex if valid
     if let Ok(irgb) = hex_to_irgb(s) {
@@ -941,19 +967,26 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
         .filter(|s| !s.is_empty())
         .enumerate()
     {
-        if n > 2 {
+        if n > 3 {
             return None;
+        } else if n >= result.len() {
+            continue;
         } else if let Ok(value) = split.parse::<f32>() {
             result[n] = value;
         } else if split.ends_with('%') {
-            if let Ok(value) = split[0..(split.len() - 1)].parse::<f32>() {
+            if let Ok(percent) = split[0..(split.len() - 1)].parse::<f32>() {
+                // alpha
+                if n == 3 {
+                    result[n] = percent / 100.0;
+                    continue;
+                }
                 let (q0, q100) = (space.srgb_quant0()[n], space.srgb_quant100()[n]);
                 if q0.is_finite() && q100.is_finite() {
-                    result[n] = value / 100.0 * (q100 - q0) + q0;
+                    result[n] = percent / 100.0 * (q100 - q0) + q0;
                 } else if Space::UCS_POLAR.contains(&space) {
-                    result[n] = value / 100.0 * 360.0
+                    result[n] = percent / 100.0 * 360.0
                 } else if space == Space::HSV {
-                    result[n] = value / 100.0
+                    result[n] = percent / 100.0
                 } else {
                     return None;
                 }
@@ -964,8 +997,8 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
             return None;
         }
     }
-    if result.iter().all(|v| v.is_finite()) {
-        Some((space, result))
+    if result.iter().take(3).all(|v| v.is_finite()) {
+        Some((space, result.map(|c| c.to_dt())))
     } else {
         None
     }
@@ -974,7 +1007,10 @@ pub fn str2col(mut s: &str) -> Option<(Space, [f32; 3])> {
 /// Convert a string into a pixel of the requested Space.
 ///
 /// Shorthand for str2col() -> convert_space()
-pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
+pub fn str2space<T: DType, const N: usize>(s: &str, to: Space) -> Option<[T; N]>
+where
+    Channels<N>: ValidChannels,
+{
     str2col(s).map(|(from, mut col)| {
         convert_space(from, to, &mut col);
         col
@@ -985,17 +1021,20 @@ pub fn str2space(s: &str, to: Space) -> Option<[f32; 3]> {
 // ### FORWARD ### {{{
 
 /// Convert floating (0.0..1.0) RGB to integer (0..255) RGB.
-pub fn srgb_to_irgb(pixel: [f32; 3]) -> [u8; 3] {
-    [
-        ((pixel[0] * 255.0).max(0.0).min(255.0) as u8),
-        ((pixel[1] * 255.0).max(0.0).min(255.0) as u8),
-        ((pixel[2] * 255.0).max(0.0).min(255.0) as u8),
-    ]
+pub fn srgb_to_irgb<const N: usize>(pixel: [f32; N]) -> [u8; N]
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.map(|c| ((c * 255.0).max(0.0).min(255.0) as u8))
 }
 
 /// Create a hexadecimal string from integer RGB.
-pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
-    let mut hex = String::from("#");
+pub fn irgb_to_hex<const N: usize>(pixel: [u8; N]) -> String
+where
+    Channels<N>: ValidChannels,
+{
+    let mut hex = String::with_capacity(N * 2 + 1);
+    hex.push('#');
 
     pixel.into_iter().for_each(|c| {
         [c / 16, c % 16]
@@ -1007,7 +1046,10 @@ pub fn irgb_to_hex(pixel: [u8; 3]) -> String {
 }
 
 /// Convert from sRGB to HSV.
-pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
+pub fn srgb_to_hsv<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     let vmin = pixel[0].min(pixel[1]).min(pixel[2]);
     let vmax = pixel[0].max(pixel[1]).max(pixel[2]);
     let dmax = vmax - vmin;
@@ -1019,7 +1061,9 @@ pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
     } else {
         let s = dmax / vmax;
 
-        let [dr, dg, db] = pixel.map(|c| (((vmax - c) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax);
+        let dr = (((vmax - pixel[0]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let dg = (((vmax - pixel[1]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let db = (((vmax - pixel[2]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
 
         let h = if pixel[0] == vmax {
             db - dg
@@ -1031,31 +1075,42 @@ pub fn srgb_to_hsv<T: DType>(pixel: &mut [T; 3]) {
         .rem_euclid(1.0.to_dt());
         (h, s)
     };
-    *pixel = [h, s, v];
+    pixel[0] = h;
+    pixel[1] = s;
+    pixel[2] = v;
 }
 
 /// Convert from sRGB to Linear RGB by applying the sRGB EOTF
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
-pub fn srgb_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
-    pixel.iter_mut().for_each(|c| *c = srgb_eotf(*c));
+pub fn srgb_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.iter_mut().take(3).for_each(|c| *c = srgb_eotf(*c));
 }
 
 /// Convert from Linear Light RGB to CIE XYZ, D65 standard illuminant
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_sRGB_to_CIE_XYZ>
-pub fn lrgb_to_xyz<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = matmul3(XYZ65_MAT, *pixel)
+pub fn lrgb_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = matmul3(XYZ65_MAT, [pixel[0], pixel[1], pixel[2]])
 }
 
 /// Convert from CIE XYZ to CIE LAB.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIEXYZ_to_CIELAB>
-pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
+pub fn xyz_to_cielab<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     // Reverse D65 standard illuminant
-    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c = *c / d.to_dt());
+    pixel.iter_mut().take(3).zip(D65).for_each(|(c, d)| *c = *c / d.to_dt());
 
-    pixel.iter_mut().for_each(|c| {
+    pixel.iter_mut().take(3).for_each(|c| {
         if *c > T::ff32(LAB_DELTA).powi(3) {
             *c = c.cbrt()
         } else {
@@ -1063,7 +1118,7 @@ pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
         }
     });
 
-    *pixel = [
+    [pixel[0], pixel[1], pixel[2]] = [
         T::ff32(116.0).fma(pixel[1], T::ff32(-16.0)),
         T::ff32(500.0) * (pixel[0] - pixel[1]),
         T::ff32(200.0) * (pixel[1] - pixel[2]),
@@ -1073,16 +1128,22 @@ pub fn xyz_to_cielab<T: DType>(pixel: &mut [T; 3]) {
 /// Convert from CIE XYZ to OKLAB.
 ///
 /// <https://bottosson.github.io/posts/oklab/>
-pub fn xyz_to_oklab<T: DType>(pixel: &mut [T; 3]) {
-    let mut lms = matmul3t(*pixel, OKLAB_M1);
+pub fn xyz_to_oklab<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    let mut lms = matmul3t([pixel[0], pixel[1], pixel[2]], OKLAB_M1);
     lms.iter_mut().for_each(|c| *c = c.cbrt());
-    *pixel = matmul3t(lms, OKLAB_M2);
+    [pixel[0], pixel[1], pixel[2]] = matmul3t(lms, OKLAB_M2);
 }
 
 /// Convert CIE XYZ to JzAzBz
 ///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
+pub fn xyz_to_jzazbz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     let mut lms = matmul3(
         JZAZBZ_M1,
         [
@@ -1096,11 +1157,9 @@ pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
 
     let lab = matmul3(JZAZBZ_M2, lms);
 
-    *pixel = [
-        (T::ff32(1.0 + JZAZBZ_D) * lab[0]) / lab[0].fma(JZAZBZ_D.to_dt(), 1.0.to_dt()) - JZAZBZ_D0.to_dt(),
-        lab[1],
-        lab[2],
-    ]
+    pixel[0] = (T::ff32(1.0 + JZAZBZ_D) * lab[0]) / lab[0].fma(JZAZBZ_D.to_dt(), 1.0.to_dt()) - JZAZBZ_D0.to_dt();
+    pixel[1] = lab[1];
+    pixel[2] = lab[2];
 }
 
 // Disabled for now as all the papers are paywalled
@@ -1113,7 +1172,10 @@ pub fn xyz_to_jzazbz<T: DType>(pixel: &mut [T; 3]) {
 /// Convert LRGB to ICtCp. Unvalidated, WIP
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
-pub fn _lrgb_to_ictcp<T: DType>(pixel: &mut [T; 3]) {
+pub fn _lrgb_to_ictcp<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     // <https://www.itu.int/rec/R-REC-BT.2020/en>
     // let alpha = 1.09929682680944;
     // let beta = 0.018053968510807;
@@ -1123,17 +1185,20 @@ pub fn _lrgb_to_ictcp<T: DType>(pixel: &mut [T; 3]) {
     // };
     // pixel.iter_mut().for_each(|c| bt2020(c));
 
-    let mut lms = matmul3(ICTCP_M1, *pixel);
+    let mut lms = matmul3(ICTCP_M1, [pixel[0], pixel[1], pixel[2]]);
     // lms prime
     lms.iter_mut().for_each(|c| *c = pq_oetf(*c));
-    *pixel = matmul3(ICTCP_M2, lms);
+    [pixel[0], pixel[1], pixel[2]] = matmul3(ICTCP_M2, lms);
 }
 
 /// Converts an LAB based space to a cylindrical representation.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-pub fn lab_to_lch<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = [
+pub fn lab_to_lch<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = [
         pixel[0],
         (pixel[1].powi(2) + pixel[2].powi(2)).sqrt(),
         pixel[2].atan2(pixel[1]).to_degrees().rem_euclid(360.0.to_dt()),
@@ -1145,51 +1210,72 @@ pub fn lab_to_lch<T: DType>(pixel: &mut [T; 3]) {
 // ### BACKWARD ### {{{
 
 /// Convert integer (0..255) RGB to floating (0.0..1.0) RGB.
-pub fn irgb_to_srgb(pixel: [u8; 3]) -> [f32; 3] {
-    [
-        pixel[0] as f32 / 255.0,
-        pixel[1] as f32 / 255.0,
-        pixel[2] as f32 / 255.0,
-    ]
+pub fn irgb_to_srgb<T: DType, const N: usize>(pixel: [u8; N]) -> [T; N]
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.map(|c| T::ff32(c as f32 / 255.0))
 }
 
 /// Create integer RGB set from hex string.
-pub fn hex_to_irgb(hex: &str) -> Result<[u8; 3], String> {
-    let hex = hex.trim().to_ascii_uppercase();
-
-    let mut chars = hex.chars();
+/// `DEFAULT` is only used when 4 channels are requested but 3 is given.
+pub fn hex_to_irgb_default<const N: usize, const DEFAULT: u8>(hex: &str) -> Result<[u8; N], String>
+where
+    Channels<N>: ValidChannels,
+{
+    let mut chars = hex.trim().chars();
     if chars.as_str().starts_with('#') {
         chars.next();
     }
 
-    let ids: Vec<u32> = if chars.as_str().len() == 6 {
-        chars
+    let ids: Vec<u32> = match chars.as_str().len() {
+        6 | 8 => chars
             .map(|c| {
                 let u = c as u32;
+                // numeric
                 if 57 >= u && u >= 48 {
                     Ok(u - 48)
+                // uppercase
                 } else if 70 >= u && u >= 65 {
                     Ok(u - 55)
+                // lowercase
+                } else if 102 >= u && u >= 97 {
+                    Ok(u - 87)
                 } else {
-                    Err(String::from("Hex character ") + &String::from(c) + " out of bounds")
+                    Err(String::from("Hex character '") + &String::from(c) + "' out of bounds")
                 }
             })
-            .collect()
-    } else {
-        Err(String::from("Incorrect hex length!"))
+            .collect(),
+        n => Err(String::from("Incorrect hex length ") + &n.to_string()),
     }?;
 
-    Ok([
-        ((ids[0]) * 16 + ids[1]) as u8,
-        ((ids[2]) * 16 + ids[3]) as u8,
-        ((ids[4]) * 16 + ids[5]) as u8,
-    ])
+    let mut result = [DEFAULT; N];
+
+    ids.chunks(2)
+        .take(result.len())
+        .enumerate()
+        .for_each(|(n, chunk)| result[n] = ((chunk[0]) * 16 + chunk[1]) as u8);
+
+    Ok(result)
+}
+
+/// Create integer RGB set from hex string.
+/// Will default to 255 for alpha if 4 channels requested but hex length is 6.
+/// Use `hex_to_irgb_default` to customize this.
+pub fn hex_to_irgb<const N: usize>(hex: &str) -> Result<[u8; N], String>
+where
+    Channels<N>: ValidChannels,
+{
+    hex_to_irgb_default::<N, 255>(hex)
 }
 
 /// Convert from HSV to sRGB.
-pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
+pub fn hsv_to_srgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     if pixel[1] == 0.0.to_dt() {
-        *pixel = [pixel[2]; 3];
+        [pixel[0], pixel[1]] = [pixel[2]; 2];
     } else {
         let mut var_h = pixel[0] * 6.0.to_dt();
         if var_h == 6.0.to_dt() {
@@ -1200,7 +1286,7 @@ pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
         let var_2 = pixel[2] * (-var_h + var_i).fma(pixel[1], 1.0.to_dt());
         let var_3 = pixel[2] * (T::ff32(-1.0) + (var_h - var_i)).fma(pixel[1], T::ff32(1.0));
 
-        *pixel = if var_i == 0.0.to_dt() {
+        [pixel[0], pixel[1], pixel[2]] = if var_i == 0.0.to_dt() {
             [pixel[2], var_3, var_1]
         } else if var_i == 1.0.to_dt() {
             [var_2, pixel[2], var_1]
@@ -1219,28 +1305,37 @@ pub fn hsv_to_srgb<T: DType>(pixel: &mut [T; 3]) {
 /// Convert from Linear RGB to sRGB by applying the inverse sRGB EOTF
 ///
 /// <https://www.color.org/chardata/rgb/srgb.xalter>
-pub fn lrgb_to_srgb<T: DType>(pixel: &mut [T; 3]) {
-    pixel.iter_mut().for_each(|c| *c = srgb_oetf(*c));
+pub fn lrgb_to_srgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    pixel.iter_mut().take(3).for_each(|c| *c = srgb_oetf(*c));
 }
 
 /// Convert from CIE XYZ to Linear Light RGB.
 ///
 /// <https://en.wikipedia.org/wiki/SRGB#From_CIE_XYZ_to_sRGB>
-pub fn xyz_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = matmul3(XYZ65_MAT_INV, *pixel)
+pub fn xyz_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = matmul3(XYZ65_MAT_INV, [pixel[0], pixel[1], pixel[2]])
 }
 
 /// Convert from CIE LAB to CIE XYZ.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIELAB_to_CIEXYZ>
-pub fn cielab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = [
+pub fn cielab_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = [
         (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() + pixel[1] / 500.0.to_dt(),
         (pixel[0] + 16.0.to_dt()) / 116.0.to_dt(),
         (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() - pixel[2] / 200.0.to_dt(),
     ];
 
-    pixel.iter_mut().for_each(|c| {
+    pixel.iter_mut().take(3).for_each(|c| {
         if *c > LAB_DELTA.to_dt() {
             *c = c.powi(3)
         } else {
@@ -1248,22 +1343,28 @@ pub fn cielab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
         }
     });
 
-    pixel.iter_mut().zip(D65).for_each(|(c, d)| *c = *c * d.to_dt());
+    pixel.iter_mut().take(3).zip(D65).for_each(|(c, d)| *c = *c * d.to_dt());
 }
 
 /// Convert from OKLAB to CIE XYZ.
 ///
 /// <https://bottosson.github.io/posts/oklab/>
-pub fn oklab_to_xyz<T: DType>(pixel: &mut [T; 3]) {
-    let mut lms = matmul3t(*pixel, OKLAB_M2_INV);
+pub fn oklab_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    let mut lms = matmul3t([pixel[0], pixel[1], pixel[2]], OKLAB_M2_INV);
     lms.iter_mut().for_each(|c| *c = c.powi(3));
-    *pixel = matmul3t(lms, OKLAB_M1_INV);
+    [pixel[0], pixel[1], pixel[2]] = matmul3t(lms, OKLAB_M1_INV);
 }
 
 /// Convert JzAzBz to CIE XYZ
 ///
 /// <https://opg.optica.org/oe/fulltext.cfm?uri=oe-25-13-15131>
-pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
+pub fn jzazbz_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     let mut lms = matmul3(
         JZAZBZ_M2_INV,
         [
@@ -1276,7 +1377,7 @@ pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
 
     lms.iter_mut().for_each(|c| *c = pqz_eotf(*c));
 
-    *pixel = matmul3(JZAZBZ_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = matmul3(JZAZBZ_M1_INV, lms);
 
     pixel[0] = pixel[2].fma((JZAZBZ_B - 1.0).to_dt(), pixel[0]) / JZAZBZ_B.to_dt();
     pixel[1] = pixel[0].fma((JZAZBZ_G - 1.0).to_dt(), pixel[1]) / JZAZBZ_G.to_dt();
@@ -1293,19 +1394,25 @@ pub fn jzazbz_to_xyz<T: DType>(pixel: &mut [T; 3]) {
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
 // #[no_mangle]
-pub fn _ictcp_to_lrgb<T: DType>(pixel: &mut [T; 3]) {
+pub fn _ictcp_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
     // lms prime
-    let mut lms = matmul3(ICTCP_M2_INV, *pixel);
+    let mut lms = matmul3(ICTCP_M2_INV, [pixel[0], pixel[1], pixel[2]]);
     // non-prime lms
     lms.iter_mut().for_each(|c| *c = pq_eotf(*c));
-    *pixel = matmul3(ICTCP_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = matmul3(ICTCP_M1_INV, lms);
 }
 
 /// Retrieves an LAB based space from its cylindrical representation.
 ///
 /// <https://en.wikipedia.org/wiki/CIELAB_color_space#Cylindrical_model>
-pub fn lch_to_lab<T: DType>(pixel: &mut [T; 3]) {
-    *pixel = [
+pub fn lch_to_lab<T: DType, const N: usize>(pixel: &mut [T; N])
+where
+    Channels<N>: ValidChannels,
+{
+    [pixel[0], pixel[1], pixel[2]] = [
         pixel[0],
         pixel[1] * pixel[2].to_radians().cos(),
         pixel[1] * pixel[2].to_radians().sin(),
@@ -1330,26 +1437,42 @@ macro_rules! cdef1 {
 }
 
 macro_rules! cdef3 {
-    ($base:ident, $f32:ident, $f64:ident) => {
+    ($base:ident, $f32_3:ident, $f64_3:ident, $f32_4:ident, $f64_4:ident) => {
         #[no_mangle]
-        extern "C" fn $f32(pixel: &mut [f32; 3]) {
+        extern "C" fn $f32_3(pixel: &mut [f32; 3]) {
             $base(pixel)
         }
         #[no_mangle]
-        extern "C" fn $f64(pixel: &mut [f64; 3]) {
+        extern "C" fn $f64_3(pixel: &mut [f64; 3]) {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f32_4(pixel: &mut [f32; 4]) {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f64_4(pixel: &mut [f64; 4]) {
             $base(pixel)
         }
     };
 }
 
 macro_rules! cdef31 {
-    ($base:ident, $f32:ident, $f64:ident) => {
+    ($base:ident, $f32_3:ident, $f64_3:ident, $f32_4:ident, $f64_4:ident) => {
         #[no_mangle]
-        extern "C" fn $f32(pixel: &[f32; 3]) -> f32 {
+        extern "C" fn $f32_3(pixel: &[f32; 3]) -> f32 {
             $base(pixel)
         }
         #[no_mangle]
-        extern "C" fn $f64(pixel: &[f64; 3]) -> f64 {
+        extern "C" fn $f64_3(pixel: &[f64; 3]) -> f64 {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f32_4(pixel: &[f32; 4]) -> f32 {
+            $base(pixel)
+        }
+        #[no_mangle]
+        extern "C" fn $f64_4(pixel: &[f64; 4]) -> f64 {
             $base(pixel)
         }
     };
@@ -1364,25 +1487,135 @@ cdef1!(pq_oetf, pq_oetf_f32, pq_oetf_f64);
 cdef1!(pqz_oetf, pqz_oetf_f32, pqz_oetf_f64);
 
 // Helmholtz-Kohlrausch
-cdef31!(hk_high2023, hk_high2023_f32, hk_high2023_f64);
-cdef3!(hk_high2023_comp, hk_high2023_comp_f32, hk_high2023_comp_f64);
+cdef31!(
+    hk_high2023,
+    hk_high2023_3f32,
+    hk_high2023_3f64,
+    hk_high2023_4f32,
+    hk_high2023_4f64
+);
+cdef3!(
+    hk_high2023_comp,
+    hk_high2023_comp_3f32,
+    hk_high2023_comp_3f64,
+    hk_high2023_comp_4f32,
+    hk_high2023_comp_4f64
+);
 
 // Forward
-cdef3!(srgb_to_hsv, srgb_to_hsv_f32, srgb_to_hsv_f64);
-cdef3!(srgb_to_lrgb, srgb_to_lrgb_f32, srgb_to_lrgb_f64);
-cdef3!(lrgb_to_xyz, lrgb_to_xyz_f32, lrgb_to_xyz_f64);
-cdef3!(xyz_to_cielab, xyz_to_cielab_f32, xyz_to_cielab_f64);
-cdef3!(xyz_to_oklab, xyz_to_oklab_f32, xyz_to_oklab_f64);
-cdef3!(xyz_to_jzazbz, xyz_to_jzazbz_f32, xyz_to_jzazbz_f64);
-cdef3!(lab_to_lch, lab_to_lch_f32, lab_to_lch_f64);
+cdef3!(
+    srgb_to_hsv,
+    srgb_to_hsv_3f32,
+    srgb_to_hsv_3f64,
+    srgb_to_hsv_4f32,
+    srgb_to_hsv_4f64
+);
+cdef3!(
+    srgb_to_lrgb,
+    srgb_to_lrgb_3f32,
+    srgb_to_lrgb_3f64,
+    srgb_to_lrgb_4f32,
+    srgb_to_lrgb_4f64
+);
+cdef3!(
+    lrgb_to_xyz,
+    lrgb_to_xyz_3f32,
+    lrgb_to_xyz_3f64,
+    lrgb_to_xyz_4f32,
+    lrgb_to_xyz_4f64
+);
+cdef3!(
+    xyz_to_cielab,
+    xyz_to_cielab_3f32,
+    xyz_to_cielab_3f64,
+    xyz_to_cielab_4f32,
+    xyz_to_cielab_4f64
+);
+cdef3!(
+    xyz_to_oklab,
+    xyz_to_oklab_3f32,
+    xyz_to_oklab_3f64,
+    xyz_to_oklab_4f32,
+    xyz_to_oklab_4f64
+);
+cdef3!(
+    xyz_to_jzazbz,
+    xyz_to_jzazbz_3f32,
+    xyz_to_jzazbz_3f64,
+    xyz_to_jzazbz_4f32,
+    xyz_to_jzazbz_4f64
+);
+cdef3!(
+    lab_to_lch,
+    lab_to_lch_3f32,
+    lab_to_lch_3f64,
+    lab_to_lch_4f32,
+    lab_to_lch_4f64
+);
+cdef3!(
+    _lrgb_to_ictcp,
+    _lrgb_to_ictcp_3f32,
+    _lrgb_to_ictcp_3f64,
+    _lrgb_to_ictcp_4f32,
+    _lrgb_to_ictcp_4f64
+);
 
 // Backward
-cdef3!(hsv_to_srgb, hsv_to_srgb_f32, hsv_to_srgb_f64);
-cdef3!(lrgb_to_srgb, lrgb_to_srgb_f32, lrgb_to_srgb_f64);
-cdef3!(xyz_to_lrgb, xyz_to_lrgb_f32, xyz_to_lrgb_f64);
-cdef3!(cielab_to_xyz, cielab_to_xyz_f32, cielab_to_xyz_f64);
-cdef3!(oklab_to_xyz, oklab_to_xyz_f32, oklab_to_xyz_f64);
-cdef3!(jzazbz_to_xyz, jzazbz_to_xyz_f32, jzazbz_to_xyz_f64);
-cdef3!(lch_to_lab, lch_to_lab_f32, lch_to_lab_f64);
+cdef3!(
+    hsv_to_srgb,
+    hsv_to_srgb_3f32,
+    hsv_to_srgb_3f64,
+    hsv_to_srgb_4f32,
+    hsv_to_srgb_4f64
+);
+cdef3!(
+    lrgb_to_srgb,
+    lrgb_to_srgb_3f32,
+    lrgb_to_srgb_3f64,
+    lrgb_to_srgb_4f32,
+    lrgb_to_srgb_4f64
+);
+cdef3!(
+    xyz_to_lrgb,
+    xyz_to_lrgb_3f32,
+    xyz_to_lrgb_3f64,
+    xyz_to_lrgb_4f32,
+    xyz_to_lrgb_4f64
+);
+cdef3!(
+    cielab_to_xyz,
+    cielab_to_xyz_3f32,
+    cielab_to_xyz_3f64,
+    cielab_to_xyz_4f32,
+    cielab_to_xyz_4f64
+);
+cdef3!(
+    oklab_to_xyz,
+    oklab_to_xyz_3f32,
+    oklab_to_xyz_3f64,
+    oklab_to_xyz_4f32,
+    oklab_to_xyz_4f64
+);
+cdef3!(
+    jzazbz_to_xyz,
+    jzazbz_to_xyz_3f32,
+    jzazbz_to_xyz_3f64,
+    jzazbz_to_xyz_4f32,
+    jzazbz_to_xyz_4f64
+);
+cdef3!(
+    lch_to_lab,
+    lch_to_lab_3f32,
+    lch_to_lab_3f64,
+    lch_to_lab_4f32,
+    lch_to_lab_4f64
+);
+cdef3!(
+    _ictcp_to_lrgb,
+    _ictcp_to_lrgb_3f32,
+    _ictcp_to_lrgb_3f64,
+    _ictcp_to_lrgb_4f32,
+    _ictcp_to_lrgb_4f64
+);
 
 // }}}
