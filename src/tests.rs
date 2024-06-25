@@ -56,7 +56,7 @@ const XYZ: &'static [[f64; 3]] = &[
     [204.19951828, 211.79115169, 588.01504694],
     [-0.64593653, -0.71965944, -1.20325077],
 ];
-const LAB: &'static [[f64; 3]] = &[
+const CIELAB: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [53.23288179, 80.11117774, 67.22370367],
     [87.73703347, -86.18285500, 83.18783466],
@@ -314,20 +314,20 @@ fn xyz_backwards() {
 
 #[test]
 fn lab_forwards() {
-    func_cmp(XYZ, LAB, xyz_to_cielab)
+    func_cmp(XYZ, CIELAB, xyz_to_cielab)
 }
 #[test]
 fn lab_backwards() {
-    func_cmp(LAB, XYZ, cielab_to_xyz)
+    func_cmp(CIELAB, XYZ, cielab_to_xyz)
 }
 
 #[test]
 fn lch_forwards() {
-    func_cmp(LAB, LCH, lab_to_lch)
+    func_cmp(CIELAB, LCH, lab_to_lch)
 }
 #[test]
 fn lch_backwards() {
-    func_cmp(LCH, LAB, lch_to_lab)
+    func_cmp(LCH, CIELAB, lch_to_lab)
 }
 
 #[test]
@@ -349,14 +349,27 @@ fn jzazbz_backwards() {
     func_cmp(JZAZBZ, XYZ, jzazbz_to_xyz)
 }
 
-// ICtCp development tests.
-// Inversion test in absence of solid reference
 #[test]
-fn ictcp_inversion() {
-    let mut pixel = LRGB.to_owned();
-    pixel.iter_mut().for_each(|p| _lrgb_to_ictcp(p));
-    pixel.iter_mut().for_each(|p| _ictcp_to_lrgb(p));
-    pix_cmp(&pixel, LRGB, 1e-3, &[]);
+fn inversions() {
+    let runs: &[(&[[f64; 3]], fn(pixel: &mut [f64; 3]), fn(pixel: &mut [f64; 3]), &str)] = &[
+        (SRGB, srgb_to_hsv, hsv_to_srgb, "HSV"),
+        (SRGB, srgb_to_lrgb, lrgb_to_srgb, "LRGB"),
+        (LRGB, lrgb_to_xyz, xyz_to_lrgb, "XYZ"),         // 1e-4
+        (LRGB, _lrgb_to_ictcp, _ictcp_to_lrgb, "ICTCP"), // 1e-4
+        (XYZ, xyz_to_cielab, cielab_to_xyz, "CIELAB"),
+        (XYZ, xyz_to_oklab, oklab_to_xyz, "OKLAB"),    // 1e-3
+        (XYZ, xyz_to_jzazbz, jzazbz_to_xyz, "JZAZBZ"), // 1e-4
+        (CIELAB, lab_to_lch, lch_to_lab, "LCH"),
+    ];
+    for (pixel, fwd, bwd, label) in runs.iter() {
+        let mut owned = pixel.to_vec();
+        owned.iter_mut().for_each(|p| {
+            fwd(p);
+            bwd(p);
+        });
+        println!("TEST {} INVERSION", label);
+        pix_cmp(&owned, pixel, 1e-3, &[]);
+    }
 }
 // Disable reference tests for public commits
 //
