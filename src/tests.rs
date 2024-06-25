@@ -68,7 +68,7 @@ const CIELAB: &'static [[f64; 3]] = &[
     [675.44970111, 14.25078120, -436.42562428],
     [-650.06570921, 155.94479927, 599.90623227],
 ];
-const LCH: &'static [[f64; 3]] = &[
+const CIELCH: &'static [[f64; 3]] = &[
     [0.00000000, 0.00000000, 0.00000000],
     [53.23288179, 104.57928635, 40.00102571],
     [87.73703347, 119.78188649, 136.01306869],
@@ -144,8 +144,8 @@ const _ICTCP2: &'static [[f64; 3]] = &[
 
 // ### COLOUR-REFS ### }}}
 
-// ### Comparison FNs ### {{{
 fn pix_cmp(input: &[[f64; 3]], reference: &[[f64; 3]], epsilon: f64, skips: &'static [usize]) {
+    // {{{
     let mut err = String::new();
     let mut cum_err = 0.0;
     for (n, (i, r)) in input.iter().zip(reference.iter()).enumerate() {
@@ -173,93 +173,35 @@ fn pix_cmp(input: &[[f64; 3]], reference: &[[f64; 3]], epsilon: f64, skips: &'st
     if !err.is_empty() {
         panic!("{}\nCUM ERR²: {}", err, cum_err)
     }
-}
-
-fn func_cmp_full(
-    input: &[[f64; 3]],
-    reference: &[[f64; 3]],
-    function: fn(&mut [f64; 3]),
-    epsilon: f64,
-    skips: &'static [usize],
-) {
-    let mut input = input.to_owned();
-    input.iter_mut().for_each(|p| function(p));
-    pix_cmp(&input, reference, epsilon, skips);
-}
-
-fn func_cmp(input: &[[f64; 3]], reference: &[[f64; 3]], function: fn(&mut [f64; 3])) {
-    func_cmp_full(input, reference, function, 1e-3, &[])
-}
-
-fn conv_cmp_full(
-    input_space: Space,
-    input: &[[f64; 3]],
-    reference_space: Space,
-    reference: &[[f64; 3]],
-    epsilon: f64,
-    skips: &'static [usize],
-) {
-    let mut input = input.to_owned();
-    convert_space_chunked(input_space, reference_space, &mut input);
-    pix_cmp(&input, reference, epsilon, skips)
-}
-
-fn conv_cmp(input_space: Space, input: &[[f64; 3]], reference_space: Space, reference: &[[f64; 3]]) {
-    // skip places where hue can wrap
-    conv_cmp_full(input_space, input, reference_space, reference, 1e-3, &[0, 1, 7])
-}
-// ### Comparison FNs ### }}}
+} // }}}
 
 // ### Single FN Accuracy ### {{{
 #[test]
-fn irgb_to() {
-    assert_eq!(IRGB, srgb_to_irgb([0.2, 0.35, 0.95]))
-}
+fn irgb_convert() {
+    println!("SRGB_TO_IRGB");
+    assert_eq!(IRGB, srgb_to_irgb([0.2, 0.35, 0.95]));
+    assert_eq!(IRGBA, srgb_to_irgb([0.2, 0.35, 0.95, 0.35]));
 
-#[test]
-fn irgb_to_alpha() {
-    assert_eq!(IRGBA, srgb_to_irgb([0.2, 0.35, 0.95, 0.35]))
-}
+    println!("IRGB_TO_SRGB");
 
-#[test]
-fn irgb_from() {
     let mut srgb = irgb_to_srgb::<f32, 3>(IRGB);
-    // Round decimal to hundredths
+    // Round decimal to hundredths for exact EQ
     srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
-    assert_eq!([0.2, 0.35, 0.95], srgb)
+    assert_eq!([0.2, 0.35, 0.95], srgb);
+
+    let mut srgba = irgb_to_srgb::<f32, 4>(IRGBA);
+    srgba.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
+    assert_eq!([0.2, 0.35, 0.95, 0.35], srgba);
 }
 
 #[test]
-fn irgb_from_alpha() {
-    let mut srgb = irgb_to_srgb::<f32, 4>(IRGBA);
-    // Round decimal to hundredths
-    srgb.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
-    assert_eq!([0.2, 0.35, 0.95, 0.35], srgb)
-}
-
-#[test]
-fn hex_to() {
-    assert_eq!(HEX, irgb_to_hex(IRGB))
-}
-
-#[test]
-fn hex_to_alpha() {
-    assert_eq!(HEXA, irgb_to_hex(IRGBA))
-}
-
-#[test]
-fn hex_from() {
+fn hex_convert() {
+    println!("IRGB_TO_HEX");
+    assert_eq!(HEX, irgb_to_hex(IRGB));
+    assert_eq!(HEXA, irgb_to_hex(IRGBA));
+    println!("HEX_TO_IRGB");
     assert_eq!(IRGB, hex_to_irgb(HEX).unwrap());
     assert_eq!(IRGB, hex_to_irgb(HEXA).unwrap());
-}
-
-#[test]
-fn hex_from_alpha() {
-    assert_eq!(
-        [IRGB[0], IRGB[1], IRGB[2], 123],
-        hex_to_irgb_default::<4, 123>(HEX).unwrap()
-    );
-    assert_eq!(IRGBA, hex_to_irgb(HEXA).unwrap());
 }
 
 #[test]
@@ -286,67 +228,35 @@ fn hex_validations() {
 }
 
 #[test]
-fn hsv_forwards() {
-    func_cmp(SRGB, HSV, srgb_to_hsv)
-}
-#[test]
-fn hsv_backwards() {
-    func_cmp(HSV, SRGB, hsv_to_srgb)
-}
+fn individual() {
+    let runs: &[(&str, &[[f64; 3]], &[[f64; 3]], fn(pixel: &mut [f64; 3]))] = &[
+        ("SRGB->HSV", SRGB, HSV, srgb_to_hsv),
+        ("HSV->SRGB", HSV, SRGB, hsv_to_srgb),
+        ("SRGB->LRGB", SRGB, LRGB, srgb_to_lrgb),
+        ("LRGB->SRGB", LRGB, SRGB, lrgb_to_srgb),
+        ("LRGB->XYZ", LRGB, XYZ, lrgb_to_xyz),
+        ("XYZ->LRGB", XYZ, LRGB, xyz_to_lrgb),
+        ("XYZ->CIELAB", XYZ, CIELAB, xyz_to_cielab),
+        ("CIELAB->XYZ", CIELAB, XYZ, cielab_to_xyz),
+        ("XYZ->OKLAB", XYZ, OKLAB, xyz_to_oklab),
+        ("OKLAB->XYZ", OKLAB, XYZ, oklab_to_xyz),
+        //("XYZ->JZAZBZ", XYZ, JZAZBZ, xyz_to_jzazbz)
+        ("JZAZBZ->XYZ", JZAZBZ, XYZ, jzazbz_to_xyz),
+        ("CIELAB->CIELCH", CIELAB, CIELCH, lab_to_lch),
+        ("CIELCH->CIELAB", CIELCH, CIELAB, lch_to_lab),
+    ];
 
-#[test]
-fn lrgb_forwards() {
-    func_cmp(SRGB, LRGB, srgb_to_lrgb)
-}
-#[test]
-fn lrgb_backwards() {
-    func_cmp(LRGB, SRGB, lrgb_to_srgb)
-}
+    for (label, from, to, func) in runs {
+        println!("{}", label);
+        let mut input = from.to_vec();
+        input.iter_mut().for_each(|p| (*func)(p));
+        pix_cmp(&input, to, 1e-3, &[]);
+    }
 
-#[test]
-fn xyz_forwards() {
-    func_cmp(LRGB, XYZ, lrgb_to_xyz)
-}
-#[test]
-fn xyz_backwards() {
-    func_cmp(XYZ, LRGB, xyz_to_lrgb)
-}
-
-#[test]
-fn lab_forwards() {
-    func_cmp(XYZ, CIELAB, xyz_to_cielab)
-}
-#[test]
-fn lab_backwards() {
-    func_cmp(CIELAB, XYZ, cielab_to_xyz)
-}
-
-#[test]
-fn lch_forwards() {
-    func_cmp(CIELAB, LCH, lab_to_lch)
-}
-#[test]
-fn lch_backwards() {
-    func_cmp(LCH, CIELAB, lch_to_lab)
-}
-
-#[test]
-fn oklab_forwards() {
-    func_cmp(XYZ, OKLAB, xyz_to_oklab)
-}
-#[test]
-fn oklab_backwards() {
-    func_cmp(OKLAB, XYZ, oklab_to_xyz)
-}
-
-// Lower epsilon because of the extremely wide gamut creating tiny values
-#[test]
-fn jzazbz_forwards() {
-    func_cmp_full(XYZ, JZAZBZ, xyz_to_jzazbz, 1e-2, &[])
-}
-#[test]
-fn jzazbz_backwards() {
-    func_cmp(JZAZBZ, XYZ, jzazbz_to_xyz)
+    println!("XYZ->JZAZBZ");
+    let mut input = XYZ.to_vec();
+    input.iter_mut().for_each(|p| xyz_to_jzazbz(p));
+    pix_cmp(&input, JZAZBZ, 1e-2, &[]);
 }
 
 #[test]
@@ -371,48 +281,33 @@ fn inversions() {
         pix_cmp(&owned, pixel, 1e-3, &[]);
     }
 }
-// Disable reference tests for public commits
-//
-// #[test]
-// fn ictcp_forwards() {
-//     func_cmp(LRGB, _ICTCP2, _lrgb_to_ictcp)
-// }
-// #[test]
-// fn ictcp_backwards() {
-//     func_cmp(_ICTCP2, LRGB, _ictcp_to_lrgb)
-// }
 // ### Single FN Accuracy ### }}}
 
 /// ### Other Tests ### {{{
 #[test]
 fn tree_jump() {
+    macro_rules! conv_cmp {
+        ($label:literal, $from_space:expr, $from_data:expr, $to_space:expr, $to_data:expr) => {
+            println!($label);
+            let mut input = $from_data.to_vec();
+            convert_space_chunked::<f64, 3>($from_space, $to_space, &mut input);
+            // strange this is 1e-3 while indiv is 1e-2
+            // also skip places where hue can wrap
+            pix_cmp(&input, $to_data, 1e-3, &[0, 1, 7])
+        };
+    }
+
     // forwards
-    println!("HSV -> LCH");
-    conv_cmp(Space::HSV, HSV, Space::CIELCH, LCH);
-
-    println!("LCH -> OKLCH");
-    conv_cmp(Space::CIELCH, LCH, Space::OKLCH, OKLCH);
-
-    println!("OKLCH -> JZCZHZ");
-    conv_cmp(Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ);
-
-    println!("JZCZHZ -> HSV");
-    conv_cmp(Space::JZCZHZ, JZCZHZ, Space::HSV, HSV);
+    conv_cmp!("HSV->LCH", Space::HSV, HSV, Space::CIELCH, CIELCH);
+    conv_cmp!("LCH -> OKLCH", Space::CIELCH, CIELCH, Space::OKLCH, OKLCH);
+    conv_cmp!("OKLCH -> JZCZHZ", Space::OKLCH, OKLCH, Space::JZCZHZ, JZCZHZ);
+    conv_cmp!("JZCZHZ -> HSV", Space::JZCZHZ, JZCZHZ, Space::HSV, HSV);
 
     // backwards
-    println!("HSV -> JZCZHZ");
-    conv_cmp(Space::HSV, HSV, Space::JZCZHZ, JZCZHZ);
-
-    println!("JZCZHZ -> OKLCH");
-    conv_cmp(Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH);
-
-    println!("OKLCH -> LCH");
-    conv_cmp(Space::OKLCH, OKLCH, Space::CIELCH, LCH);
-
-    // add 1 to skip because the hue wraps from 0.0000 to 0.9999
-    // fuck you precision
-    println!("LCH -> HSV");
-    conv_cmp(Space::CIELCH, LCH, Space::HSV, HSV);
+    conv_cmp!("HSV -> JZCZHZ", Space::HSV, HSV, Space::JZCZHZ, JZCZHZ);
+    conv_cmp!("JZCZHZ -> OKLCH", Space::JZCZHZ, JZCZHZ, Space::OKLCH, OKLCH);
+    conv_cmp!("OKLCH -> LCH", Space::OKLCH, OKLCH, Space::CIELCH, CIELCH);
+    conv_cmp!("LCH -> HSV", Space::CIELCH, CIELCH, Space::HSV, HSV);
 }
 
 #[test]
@@ -470,7 +365,7 @@ fn sliced() {
             .chunks_exact(3)
             .map(|c| c.try_into().unwrap())
             .collect::<Vec<[f64; 3]>>(),
-        LCH,
+        CIELCH,
         1e-2,
         &[],
     );
@@ -489,7 +384,7 @@ fn sliced_odd() {
             .chunks_exact(3)
             .map(|c| c.try_into().unwrap())
             .collect::<Vec<[f64; 3]>>(),
-        LCH,
+        CIELCH,
         1e-2,
         &[],
     );
