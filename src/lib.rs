@@ -80,9 +80,6 @@ pub trait DType:
     fn spowf(self, rhs: Self) -> Self;
     fn rem_euclid(self, rhs: Self) -> Self;
 
-    fn sqrt(self) -> Self;
-    fn cbrt(self) -> Self;
-
     fn abs(self) -> Self;
     fn trunc(self) -> Self;
     fn max(self, other: Self) -> Self;
@@ -93,6 +90,19 @@ pub trait DType:
     fn to_degrees(self) -> Self;
     fn to_radians(self) -> Self;
     fn atan2(self, rhs: Self) -> Self;
+
+    fn sqrt(self) -> Self {
+        self.powf((1.0 / 2.0).to_dt())
+    }
+    fn cbrt(self) -> Self {
+        self.powf((1.0 / 3.0).to_dt())
+    }
+    fn ssqrt(self) -> Self {
+        self.spowf((1.0 / 2.0).to_dt())
+    }
+    fn scbrt(self) -> Self {
+        self.spowf((1.0 / 3.0).to_dt())
+    }
 
     fn _fma(self, mul: Self, add: Self) -> Self;
     /// Fused multiply-add if "fma" is enabled in rustc
@@ -121,12 +131,6 @@ macro_rules! impl_float {
             fn rem_euclid(self, rhs: Self) -> Self {
                 self.rem_euclid(rhs)
             }
-            fn sqrt(self) -> Self {
-                self.sqrt()
-            }
-            fn cbrt(self) -> Self {
-                self.cbrt()
-            }
             fn abs(self) -> Self {
                 self.abs()
             }
@@ -154,6 +158,13 @@ macro_rules! impl_float {
             fn atan2(self, rhs: Self) -> Self {
                 self.atan2(rhs)
             }
+            fn sqrt(self) -> Self {
+                self.sqrt()
+            }
+            // 50% slower than powf/spowf?
+            //fn cbrt(self) -> Self {
+            //    self.cbrt()
+            //}
             fn _fma(self, mul: Self, add: Self) -> Self {
                 self.mul_add(mul, add)
             }
@@ -1133,7 +1144,7 @@ where
     Channels<N>: ValidChannels,
 {
     let mut lms = matmul3t([pixel[0], pixel[1], pixel[2]], OKLAB_M1);
-    lms.iter_mut().for_each(|c| *c = c.cbrt());
+    lms.iter_mut().for_each(|c| *c = c.scbrt());
     [pixel[0], pixel[1], pixel[2]] = matmul3t(lms, OKLAB_M2);
 }
 
