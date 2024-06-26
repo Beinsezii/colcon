@@ -240,7 +240,7 @@ fn individual() {
         ("CIELAB->XYZ", CIELAB, XYZ, cielab_to_xyz),
         ("XYZ->OKLAB", XYZ, OKLAB, xyz_to_oklab),
         ("OKLAB->XYZ", OKLAB, XYZ, oklab_to_xyz),
-        //("XYZ->JZAZBZ", XYZ, JZAZBZ, xyz_to_jzazbz)
+        //("XYZ->JZAZBZ", XYZ, JZAZBZ, xyz_to_jzazbz),
         ("JZAZBZ->XYZ", JZAZBZ, XYZ, jzazbz_to_xyz),
         ("CIELAB->CIELCH", CIELAB, CIELCH, lab_to_lch),
         ("CIELCH->CIELAB", CIELCH, CIELAB, lch_to_lab),
@@ -426,26 +426,30 @@ fn nan_checks() {
     let it = [1e+3, -1e+3, 1e-3, -1e-3];
     // do these at f32 to faster approach bounds
     let fns: &[(&'static str, fn(&mut [f32; 3]))] = &[
-        ("hsv_forwards", srgb_to_hsv),
-        ("hsv_backwards", hsv_to_srgb),
-        ("lrgb_forwards", srgb_to_lrgb),
-        ("lrgb_backwards", lrgb_to_srgb),
-        ("xyz_forwards", lrgb_to_xyz),
-        ("xyz_backwards", xyz_to_lrgb),
-        ("lab_forwards", xyz_to_cielab),
-        ("lab_backwards", cielab_to_xyz),
-        ("lch_forwards", lab_to_lch),
-        ("lch_backwards", lch_to_lab),
-        ("oklab_forwards", xyz_to_oklab),
-        ("oklab_backwards", oklab_to_xyz),
-        //("jzazbz_forwards", xyz_to_jzazbz), // ugh
-        ("jzazbz_backwards", jzazbz_to_xyz),
+        ("srgb_to_hsv", srgb_to_hsv),
+        ("hsv_to_srgb", hsv_to_srgb),
+        ("srgb_to_lrgb", srgb_to_lrgb),
+        ("lrgb_to_srgb", lrgb_to_srgb),
+        ("lrgb_to_xyz", lrgb_to_xyz),
+        ("xyz_to_lrgb", xyz_to_lrgb),
+        ("xyz_to_cielab", xyz_to_cielab),
+        ("cielab_to_xyz", cielab_to_xyz),
+        ("lab_to_lch", lab_to_lch),
+        ("lch_to_lab", lch_to_lab),
+        ("xyz_to_oklab", xyz_to_oklab),
+        ("oklab_to_xyz", oklab_to_xyz),
+        // fails hard in the PQ function with (N/D)^P
+        // Succeeds in F64 but graphics is almost always run in F32
+        //("xyz_to_jzazbz", xyz_to_jzazbz),
+        ("jzazbz_to_xyz", jzazbz_to_xyz),
+        ("_lrgb_to_ictcp", _lrgb_to_ictcp),
+        ("_ictcp_to_lrgb", _ictcp_to_lrgb),
     ];
     for (label, func) in fns {
         for a in it.iter() {
             for b in it.iter() {
                 for c in it.iter() {
-                    let from: [f32; 3] = [*a, *b, *c];
+                    let from = [*a, *b, *c];
                     let mut to = from;
                     func(&mut to);
                     if to.iter().any(|c| !c.is_finite()) {

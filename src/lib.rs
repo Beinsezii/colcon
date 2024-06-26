@@ -16,6 +16,7 @@ mod tests;
 
 use core::cmp::PartialOrd;
 use core::ffi::{c_char, CStr};
+use core::fmt::Display;
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 // DType {{{
@@ -72,6 +73,7 @@ pub trait DType:
     + Rem<Output = Self>
     + Sub<Output = Self>
     + PartialOrd
+    + Display
     + FromF32
 {
     fn powi(self, rhs: i32) -> Self;
@@ -395,7 +397,7 @@ fn pq_oetf_common<T: DType>(f: T, m2: T) -> T {
     let numerator: T = T::ff32(PQEOTF_C2).fma(y_pow_m1, PQEOTF_C1.to_dt());
     let denominator: T = T::ff32(PQEOTF_C3).fma(y_pow_m1, 1.0.to_dt());
 
-    (numerator / denominator).powf(m2)
+    (numerator / denominator).spowf(m2)
 }
 
 /// Dolby Perceptual Quantizer Electro-Optical Transfer Function primarily used for ICtCP
@@ -544,7 +546,7 @@ impl TryFrom<&str> for Space {
     }
 }
 
-impl core::fmt::Display for Space {
+impl Display for Space {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::write(
             f,
