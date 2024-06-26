@@ -1329,10 +1329,11 @@ pub fn cielab_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
 where
     Channels<N>: ValidChannels,
 {
+    pixel[0] = pixel[0].fma((1.0 / 116.0).to_dt(), (16.0 / 116.0).to_dt());
     [pixel[0], pixel[1], pixel[2]] = [
-        (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() + pixel[1] / 500.0.to_dt(),
-        (pixel[0] + 16.0.to_dt()) / 116.0.to_dt(),
-        (pixel[0] + 16.0.to_dt()) / 116.0.to_dt() - pixel[2] / 200.0.to_dt(),
+        pixel[0] + pixel[1] / 500.0.to_dt(),
+        pixel[0],
+        pixel[0] - pixel[2] / 200.0.to_dt(),
     ];
 
     pixel.iter_mut().take(3).for_each(|c| {
