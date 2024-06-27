@@ -1074,16 +1074,18 @@ where
     } else {
         let s = dmax / vmax;
 
-        let dr = (((vmax - pixel[0]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
-        let dg = (((vmax - pixel[1]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
-        let db = (((vmax - pixel[2]) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        let [branch_0, branch_1] = [pixel[0] == vmax, pixel[1] == vmax];
 
-        let h = if pixel[0] == vmax {
-            db - dg
-        } else if pixel[1] == vmax {
-            T::ff32(1.0 / 3.0) + dr - db
+        pixel.iter_mut().take(3).for_each(|c| {
+            *c = (((vmax - *c) / 6.0.to_dt()) + (dmax / 2.0.to_dt())) / dmax;
+        });
+
+        let h = if branch_0 {
+            pixel[2] - pixel[1]
+        } else if branch_1 {
+            T::ff32(1.0 / 3.0) + pixel[0] - pixel[2]
         } else {
-            T::ff32(2.0 / 3.0) + dg - dr
+            T::ff32(2.0 / 3.0) + pixel[1] - pixel[0]
         }
         .rem_euclid(1.0.to_dt());
         (h, s)
