@@ -24,20 +24,11 @@ fn main() {
         (Space::OKLCH, "oklab"),
         (Space::JZCZHZ, "jzazbz"),
     ] {
+        const LQ: usize = 65;
         let mut data: Vec<[f32; 3]> = (0..HEIGHT)
             .map(|h| {
                 (0..WIDTH)
-                    .map(|w| {
-                        [
-                            match space {
-                                Space::OKLCH => 0.70,
-                                Space::JZCZHZ => 0.50,
-                                _ => 0.65,
-                            },
-                            1.0 - h as f32 / 100.0,
-                            w as f32,
-                        ]
-                    })
+                    .map(|w| [space.srgb_quants()[LQ][0], 1.0 - h as f32 / 100.0, w as f32])
                     .collect::<Vec<[f32; 3]>>()
             })
             .flatten()
@@ -45,9 +36,8 @@ fn main() {
 
         data.iter_mut().for_each(|p| {
             if space == Space::HSV {
-                *p = [p[2] / 360.0, p[1], p[0]]
+                *p = [p[2] / 360.0, p[1], space.srgb_quants()[LQ][2]]
             } else {
-                p[0] *= space.srgb_quants()[95][0];
                 p[1] *= space.srgb_quants()[100][1];
             }
         });
