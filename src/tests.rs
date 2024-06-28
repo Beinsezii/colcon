@@ -192,6 +192,11 @@ fn irgb_convert() {
     let mut srgba = irgb_to_srgb::<f32, 4>(IRGBA);
     srgba.iter_mut().for_each(|c| *c = (*c * 100.0).round() / 100.0);
     assert_eq!([0.2, 0.35, 0.95, 0.35], srgba);
+
+    // 254.4 / 255.0 ≈ 0.9970 // round up
+    // 254.6 / 255.0 ≈ 0.9984 // round down
+    let close_call = [0.9970, 0.9984, 0.999999];
+    assert_eq!(srgb_to_irgb(close_call), [254, 255, 255]);
 }
 
 #[test]

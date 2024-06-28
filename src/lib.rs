@@ -903,7 +903,7 @@ pub fn srgb_to_irgb<const N: usize>(pixel: [f32; N]) -> [u8; N]
 where
     Channels<N>: ValidChannels,
 {
-    pixel.map(|c| ((c * 255.0).max(0.0).min(255.0) as u8))
+    pixel.map(|c| ((c * 255.0).round().max(0.0).min(255.0) as u8))
 }
 
 /// Create a hexadecimal string from integer RGB.
