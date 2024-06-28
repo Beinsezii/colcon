@@ -658,7 +658,8 @@ fn str2col_perc_mix() {
             Space::OKLAB,
             [
                 0.5f32,
-                Space::OKLAB.srgb_quants()[100][1],
+                Space::OKLAB.srgb_quants()[100][1] - Space::OKLAB.srgb_quants()[0][1]
+                    + Space::OKLAB.srgb_quants()[0][1],
                 Space::OKLAB.srgb_quants()[0][2]
             ]
         ))
