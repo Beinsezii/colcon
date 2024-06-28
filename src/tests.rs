@@ -409,7 +409,7 @@ fn interweave() {
     let mut new = slice.clone();
     new.push(1234.5678);
 
-    let deinterleaved = unweave::<3>(&new);
+    let deinterleaved = unweave::<_, 3>(&new);
     assert_eq!(deinterleaved[0].len(), deinterleaved[1].len());
     assert_eq!(deinterleaved[0].len(), deinterleaved[2].len());
     let chunked: Vec<[f32; 3]> = (0..deinterleaved[0].len()).fold(Vec::new(), |mut acc, it| {

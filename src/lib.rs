@@ -18,7 +18,7 @@ mod generated_quantiles;
 
 use core::cmp::PartialOrd;
 use core::ffi::{c_char, CStr};
-use core::fmt::Display;
+use core::fmt::{Debug, Display};
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 // DType {{{
@@ -183,11 +183,14 @@ impl_float!(f64);
 
 /// Create an array of separate channel buffers from a single interwoven buffer.
 /// Copies the data.
-pub fn unweave<const N: usize>(slice: &[f32]) -> [Box<[f32]>; N] {
+pub fn unweave<T, const N: usize>(slice: &[T]) -> [Box<[T]>; N]
+where
+    T: Debug + Copy,
+{
     let len = slice.len() / N;
-    let mut result: [Vec<f32>; N] = (0..N)
+    let mut result: [Vec<T>; N] = (0..N)
         .map(|_| Vec::with_capacity(len))
-        .collect::<Vec<Vec<f32>>>()
+        .collect::<Vec<Vec<T>>>()
         .try_into()
         .unwrap();
 
@@ -200,7 +203,10 @@ pub fn unweave<const N: usize>(slice: &[f32]) -> [Box<[f32]>; N] {
 
 /// Create a monolithic woven buffer using unwoven independent channel buffers.
 /// Copies the data.
-pub fn weave<const N: usize>(array: [Box<[f32]>; N]) -> Box<[f32]> {
+pub fn weave<T, const N: usize>(array: [Box<[T]>; N]) -> Box<[T]>
+where
+    T: Debug + Copy,
+{
     let len = array[0].len();
     (0..len)
         .into_iter()

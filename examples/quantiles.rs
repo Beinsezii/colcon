@@ -2,24 +2,24 @@ use colcon::{convert_space_sliced, unweave, Space};
 
 fn main() {
     const STEPS: usize = 100;
-    let stepsf = STEPS as f32;
+    let stepsf = STEPS as f64;
 
     let srgb = (0..=STEPS)
         .map(move |a| {
             (0..=STEPS)
                 .map(move |b| {
                     (0..=STEPS)
-                        .map(move |c| [a as f32 / stepsf, b as f32 / stepsf, c as f32 / stepsf])
-                        .collect::<Vec<[f32; 3]>>()
+                        .map(move |c| [a as f64 / stepsf, b as f64 / stepsf, c as f64 / stepsf])
+                        .collect::<Vec<[f64; 3]>>()
                 })
-                .collect::<Vec<Vec<[f32; 3]>>>()
+                .collect::<Vec<Vec<[f64; 3]>>>()
         })
-        .collect::<Vec<Vec<Vec<[f32; 3]>>>>()
+        .collect::<Vec<Vec<Vec<[f64; 3]>>>>()
         .into_iter()
         .flatten()
         .flatten()
         .flatten()
-        .collect::<Vec<f32>>()
+        .collect::<Vec<f64>>()
         .into_boxed_slice();
 
     assert_eq!(srgb.len() % 3, 0);
@@ -35,7 +35,7 @@ fn main() {
         let mut colors = srgb.clone();
         convert_space_sliced::<_, 3>(Space::SRGB, *space, &mut colors);
 
-        for (nc, mut channel) in unweave::<3>(&colors).into_iter().enumerate() {
+        for (nc, mut channel) in unweave::<_, 3>(&colors).into_iter().enumerate() {
             // just unwrap since SDR shouldn't nan
             channel.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
 
@@ -47,10 +47,10 @@ fn main() {
         // disable hue and enforce 0 chroma floor
         // otherwise JZCZHZ and CIELCH (C) are something like 1e-16
         if Space::UCS_POLAR.contains(space) {
-            quantiles.iter_mut().for_each(|q| q[2] = f32::INFINITY);
+            quantiles.iter_mut().for_each(|q| q[2] = f64::INFINITY);
             quantiles[0][1] = 0.0;
         } else if space == &Space::HSV {
-            quantiles.iter_mut().for_each(|q| q[0] = f32::INFINITY)
+            quantiles.iter_mut().for_each(|q| q[0] = f64::INFINITY)
         }
 
         // enforce 0 lightness floor.
