@@ -47,8 +47,8 @@ fn main() {
             if space == Space::HSV {
                 *p = [p[2] / 360.0, p[1], p[0]]
             } else {
-                p[0] *= space.srgb_quant100()[0];
-                p[1] *= space.srgb_quant95()[1];
+                p[0] *= space.srgb_quants()[95][0];
+                p[1] *= space.srgb_quants()[100][1];
             }
         });
 

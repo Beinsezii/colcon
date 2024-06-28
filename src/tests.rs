@@ -610,8 +610,8 @@ fn str2col_perc100() {
         Some((
             Space::OKLCH,
             [
-                Space::OKLCH.srgb_quant100()[0],
-                Space::OKLCH.srgb_quant100()[1],
+                Space::OKLCH.srgb_quants()[100][0],
+                Space::OKLCH.srgb_quants()[100][1],
                 360.0f32
             ]
         ))
@@ -625,8 +625,10 @@ fn str2col_perc50() {
         Some((
             Space::OKLCH,
             [
-                (Space::OKLCH.srgb_quant0()[0] + Space::OKLCH.srgb_quant100()[0]) / 2.0,
-                (Space::OKLCH.srgb_quant0()[1] + Space::OKLCH.srgb_quant100()[1]) / 2.0,
+                //(Space::OKLCH.srgb_quants()[50][0]),
+                //(Space::OKLCH.srgb_quants()[50][1]),
+                (Space::OKLCH.srgb_quants()[0][0] + Space::OKLCH.srgb_quants()[100][0]) / 2.0,
+                (Space::OKLCH.srgb_quants()[0][1] + Space::OKLCH.srgb_quants()[100][1]) / 2.0,
                 180.0f32,
             ]
         ))
@@ -639,7 +641,11 @@ fn str2col_perc0() {
         str2col("oklch 0% 0% 0%"),
         Some((
             Space::OKLCH,
-            [Space::OKLCH.srgb_quant0()[0], Space::OKLCH.srgb_quant0()[1], 0.0f32]
+            [
+                Space::OKLCH.srgb_quants()[0][0],
+                Space::OKLCH.srgb_quants()[0][1],
+                0.0f32
+            ]
         ))
     )
 }
@@ -650,7 +656,11 @@ fn str2col_perc_mix() {
         str2col("oklab 0.5 100.000% 0%"),
         Some((
             Space::OKLAB,
-            [0.5f32, Space::OKLAB.srgb_quant100()[1], Space::OKLAB.srgb_quant0()[2]]
+            [
+                0.5f32,
+                Space::OKLAB.srgb_quants()[100][1],
+                Space::OKLAB.srgb_quants()[0][2]
+            ]
         ))
     )
 }

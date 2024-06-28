@@ -1,7 +1,6 @@
-use colcon::{convert_space_chunked, Space};
+use colcon::{convert_space_sliced, unweave, Space};
 
 fn main() {
-    const QUANTILES: [usize; 8] = [0, 1, 5, 10, 90, 95, 99, 100];
     const STEPS: usize = 100;
     let stepsf = STEPS as f32;
 
@@ -19,29 +18,34 @@ fn main() {
         .into_iter()
         .flatten()
         .flatten()
-        .collect::<Vec<[f32; 3]>>()
+        .flatten()
+        .collect::<Vec<f32>>()
         .into_boxed_slice();
 
-    assert_eq!(srgb.len() / 100 * 100, srgb.len() - 1);
+    assert_eq!(srgb.len() % 3, 0);
+    assert_eq!(((srgb.len() / 3) - 1) % 100, 0);
 
-    let mut results = Vec::new();
+    let mut formatted = String::from(
+        "pub const fn srgb_quants(space: &crate::Space) -> [[f32; 3]; 101] {
+    match space {",
+    );
 
     for space in Space::ALL.iter() {
-        let mut quantiles = [[123456789.0; 3]; QUANTILES.len()];
+        let mut quantiles = [[123456789.0; 3]; 101];
         let mut colors = srgb.clone();
-        convert_space_chunked(Space::SRGB, *space, &mut colors);
+        convert_space_sliced::<_, 3>(Space::SRGB, *space, &mut colors);
 
-        for c in 0..3 {
-            let mut channel: Vec<f32> = colors.into_iter().map(|p| p[c]).collect();
+        for (nc, mut channel) in unweave::<3>(&colors).into_iter().enumerate() {
             // just unwrap since SDR shouldn't nan
             channel.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
 
-            for (qn, q) in QUANTILES.iter().enumerate() {
-                quantiles[qn][c] = channel[channel.len() / 100 * q]
+            for n in 0..=100 {
+                quantiles[n][nc] = channel[channel.len() / 100 * n]
             }
         }
 
         // disable hue and enforce 0 chroma floor
+        // otherwise JZCZHZ and CIELCH (C) are something like 1e-16
         if Space::UCS_POLAR.contains(space) {
             quantiles.iter_mut().for_each(|q| q[2] = f32::INFINITY);
             quantiles[0][1] = 0.0;
@@ -49,38 +53,19 @@ fn main() {
             quantiles.iter_mut().for_each(|q| q[0] = f32::INFINITY)
         }
 
-        // enforce 0 lightness floor
+        // enforce 0 lightness floor.
+        // otherwise JZCZHZ and CIELCH (L) are something like 1e-16
         if Space::UCS.contains(space) || Space::UCS_POLAR.contains(space) {
             quantiles[0][0] = 0.0;
         }
 
-        results.push(quantiles);
+        formatted +=
+            &format!("\n        &crate::Space::{:?} => {:?},", space, quantiles).replace("inf", "f32::INFINITY");
     }
 
-    let mut formatted = String::new();
-
-    for (qn, q) in QUANTILES.iter().enumerate() {
-        formatted += &format!("
-/// Retrieves the {} quantile for mapping a given Space back to SRGB.
-///
-/// This is useful for things like creating adjustable values in Space
-/// that represent most of the SRGB range without clipping.
-/// Wrapping Hue values are set to f32::INFINITY
-pub const fn srgb_quant{}(&self) -> [f32; 3] {{
-    match self {{",
-            q, q
-        );
-        for (n, space) in Space::ALL.iter().enumerate() {
-            formatted += &format!("
-        &Space::{:?} => {:?},",
-                space, results[n][qn]
-            )
-            .replace("inf", "f32::INFINITY");
-        }
-        formatted += "
+    formatted += "
     }
-}"
-    }
+}";
 
     println!("{}", formatted);
 }
