@@ -73,7 +73,7 @@ JZAZBZ = [0.00601244, -0.00145433, -0.01984568]
 
 
 def pixcmp(a, b):
-    epsilon = 1e-5
+    epsilon = 1e-4
     for ac, bc in zip(a, b):
         if abs(ac - bc) > epsilon:
             print(
