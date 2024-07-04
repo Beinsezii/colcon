@@ -428,9 +428,25 @@ fn interweave() {
 
 #[test]
 fn nan_checks() {
-    let it = [1e+3, -1e+3, 1e-3, -1e-3];
-    // do these at f32 to faster approach bounds
-    let fns: &[(&'static str, fn(&mut [f32; 3]))] = &[
+    let fns_f64: &[(&'static str, fn(&mut [f64; 3]))] = &[
+        ("srgb_to_hsv", srgb_to_hsv),
+        ("hsv_to_srgb", hsv_to_srgb),
+        ("srgb_to_lrgb", srgb_to_lrgb),
+        ("lrgb_to_srgb", lrgb_to_srgb),
+        ("lrgb_to_xyz", lrgb_to_xyz),
+        ("xyz_to_lrgb", xyz_to_lrgb),
+        ("xyz_to_cielab", xyz_to_cielab),
+        ("cielab_to_xyz", cielab_to_xyz),
+        ("lab_to_lch", lab_to_lch),
+        ("lch_to_lab", lch_to_lab),
+        ("xyz_to_oklab", xyz_to_oklab),
+        ("oklab_to_xyz", oklab_to_xyz),
+        ("xyz_to_jzazbz", xyz_to_jzazbz),
+        ("jzazbz_to_xyz", jzazbz_to_xyz),
+        ("_lrgb_to_ictcp", _lrgb_to_ictcp),
+        ("_ictcp_to_lrgb", _ictcp_to_lrgb),
+    ];
+    let fns_f32: &[(&'static str, fn(&mut [f32; 3]))] = &[
         ("srgb_to_hsv", srgb_to_hsv),
         ("hsv_to_srgb", hsv_to_srgb),
         ("srgb_to_lrgb", srgb_to_lrgb),
@@ -444,26 +460,31 @@ fn nan_checks() {
         ("xyz_to_oklab", xyz_to_oklab),
         ("oklab_to_xyz", oklab_to_xyz),
         // fails hard in the PQ function with (N/D)^P
-        // Succeeds in F64 but graphics is almost always run in F32
         //("xyz_to_jzazbz", xyz_to_jzazbz),
         ("jzazbz_to_xyz", jzazbz_to_xyz),
         ("_lrgb_to_ictcp", _lrgb_to_ictcp),
         ("_ictcp_to_lrgb", _ictcp_to_lrgb),
     ];
-    for (label, func) in fns {
-        for a in it.iter() {
-            for b in it.iter() {
-                for c in it.iter() {
-                    let from = [*a, *b, *c];
-                    let mut to = from;
-                    func(&mut to);
-                    if to.iter().any(|c| !c.is_finite()) {
-                        panic!("{} : {:?} -> {:?}", label, from, to);
+    macro_rules! nan_checks {
+        ($dtype:literal, $values:expr, $fns:expr) => {
+            for (label, func) in $fns {
+                for a in $values.iter() {
+                    for b in $values.iter() {
+                        for c in $values.iter() {
+                            let from = [*a, *b, *c];
+                            let mut to = from;
+                            func(&mut to);
+                            if to.iter().any(|c| !c.is_finite()) {
+                                panic!("{} {} : {:?} -> {:?}", $dtype, label, from, to);
+                            }
+                        }
                     }
                 }
             }
-        }
+        };
     }
+    nan_checks!("F32", [1e+3, -1e+3, 1e-3, -1e-3], fns_f32);
+    nan_checks!("F64", [1e+3, -1e+3, 1e-3, -1e-3], fns_f64);
 }
 
 #[test]
