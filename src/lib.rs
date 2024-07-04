@@ -744,8 +744,17 @@ where
 /// Same as `convert_space_sliced` but with FFI types.
 ///
 /// Returns 0 on success, 1 on invalid `from`, 2 on invalid `to`, 3 on invalid `pixels`
-#[no_mangle]
-pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
+///
+/// `len` is in elements rather than bytes
+pub fn convert_space_ffi<T: DType, const N: usize>(
+    from: *const c_char,
+    to: *const c_char,
+    pixels: *mut T,
+    len: usize,
+) -> i32
+where
+    Channels<N>: ValidChannels,
+{
     let from = unsafe {
         if from.is_null() {
             return 1;
@@ -785,7 +794,7 @@ pub extern "C" fn convert_space_ffi(from: *const c_char, to: *const c_char, pixe
             core::slice::from_raw_parts_mut(pixels, len)
         }
     };
-    convert_space_sliced::<_, 3>(from, to, pixels);
+    convert_space_sliced::<T, N>(from, to, pixels);
     0
 }
 
@@ -1305,6 +1314,23 @@ where
 // BACKWARD }}}
 
 // ### MONOTYPED EXTERNAL FUNCTIONS ### {{{
+
+#[no_mangle]
+extern "C" fn convert_space_ffi_3f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
+    convert_space_ffi::<_, 3>(from, to, pixels, len)
+}
+#[no_mangle]
+extern "C" fn convert_space_ffi_4f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
+    convert_space_ffi::<_, 4>(from, to, pixels, len)
+}
+#[no_mangle]
+extern "C" fn convert_space_ffi_3f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
+    convert_space_ffi::<_, 3>(from, to, pixels, len)
+}
+#[no_mangle]
+extern "C" fn convert_space_ffi_4f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
+    convert_space_ffi::<_, 4>(from, to, pixels, len)
+}
 
 macro_rules! cdef1 {
     ($base:ident, $f32:ident, $f64:ident) => {

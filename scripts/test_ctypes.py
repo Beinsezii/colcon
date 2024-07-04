@@ -14,13 +14,13 @@ elif platform == "linux":
 
 colcon = ctypes.CDLL(f"./target/release/{LIBRARY}")
 
-colcon.convert_space_ffi.argtypes = [
+colcon.convert_space_ffi_3f32.argtypes = [
     ctypes.c_char_p,
     ctypes.c_char_p,
     cpixels,
     ctypes.c_uint,
 ]
-colcon.convert_space_ffi.restype = ctypes.c_int32
+colcon.convert_space_ffi_3f32.restype = ctypes.c_int32
 
 # up
 colcon.srgb_to_hsv_3f32.argtypes = [cpixel]
@@ -141,6 +141,6 @@ colcon.srgb_to_hsv_3f32(pix)
 pixcmp(list(pix), HSV)
 
 pix = (ctypes.c_float * len(SRGB))(*SRGB)
-if colcon.convert_space_ffi("srgb".encode(), "lch".encode(), pix, len(pix)) != 0:
+if colcon.convert_space_ffi_3f32("srgb".encode(), "lch".encode(), pix, len(pix)) != 0:
     print("CONVERT SPACE FAIL")
 pixcmp(list(pix), LCH)
