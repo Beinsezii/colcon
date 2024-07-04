@@ -648,15 +648,6 @@ macro_rules! op_chunk {
     };
 }
 
-macro_rules! op_inter {
-    ($func:ident, $data:expr) => {
-        $data.chunks_exact_mut(N).for_each(|pixel| {
-            let pixel: &mut [T; N] = pixel.try_into().unwrap();
-            $func(pixel);
-        })
-    };
-}
-
 #[rustfmt::skip]
 macro_rules! graph {
     ($recurse:ident, $data:expr, $from:expr, $to:expr, $op:ident) => {
@@ -736,7 +727,18 @@ pub fn convert_space_sliced<T: DType, const N: usize>(from: Space, to: Space, pi
 where
     Channels<N>: ValidChannels,
 {
-    graph!(convert_space_sliced, pixels, from, to, op_inter);
+    // Inline std::slice::as_chunks_mut without the asserts as its already guarded by ValidChannels
+    let (mut_chunks, _remainder): (&mut [[T; N]], &mut [T]) = {
+        let len = pixels.len() / N;
+        let (multiple_of_n, remainder) = pixels.split_at_mut(len * N);
+        let array_slice = {
+            let this = &mut *multiple_of_n;
+            let new_len = this.len() / N;
+            unsafe { core::slice::from_raw_parts_mut(this.as_mut_ptr().cast(), new_len) }
+        };
+        (array_slice, remainder)
+    };
+    graph!(convert_space_chunked, mut_chunks, from, to, op_chunk);
 }
 
 /// Same as `convert_space_sliced` but with FFI types.
