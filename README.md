@@ -1,4 +1,4 @@
-# ColCon 0.9.0
+# ColCon 0.10.0
 Comprehensive colorspace conversions in Rust.
 
 ## Features
@@ -6,7 +6,7 @@ Comprehensive colorspace conversions in Rust.
   * sRGB, RGB, CIE XYZ, CIE LAB, Oklab, JzAzBz, HSV
     + LCH/Cylindrical versions of all LAB spaces
   * Most functions compile to a C lib
-  * Generic over F32/F64
+  * Generic over F32/F64 with const alpha channel
   * FMA3 used where supported
   * Accurate across a wide variety of tests, referencing [colour-science](https://github.com/colour-science/colour)
 
