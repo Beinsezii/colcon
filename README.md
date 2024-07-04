@@ -11,14 +11,10 @@ Comprehensive colorspace conversions in Rust.
   * Accurate across a wide variety of tests, referencing [colour-science](https://github.com/colour-science/colour)
 
 ## Future
-  * Look into SIMD when supported by standard library
+  * `std::simd` either after stabilization or as a nightly feature
   * More spaces?
-
-## Known Issues
-  * `convert_space_sliced` is slower than it could be. Waiting for [slice_as_chunks](https://github.com/rust-lang/rust/issues/74985) to land in stable.
-  * Performing many (>100) conversions in sequence will gradually degrade the data due to tiny precision issues accumulating.
 
 ## F.A.Q.
 Question|Answer
 ---|---
-Why?|I just wanna say "go from this to this" without any fuss.
+Why?|I greatly enjoy working with Uniform Color Spaces and wish to see them become more accessible and easy to use.
