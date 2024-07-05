@@ -75,6 +75,7 @@ pub trait DType:
     + Rem<Output = Self>
     + Sub<Output = Self>
     + PartialOrd
+    + Debug
     + Display
     + FromF32
 {
@@ -558,6 +559,22 @@ impl TryFrom<&str> for Space {
     }
 }
 
+impl TryFrom<*const c_char> for Space {
+    type Error = ();
+    fn try_from(value: *const c_char) -> Result<Self, ()> {
+        if value.is_null() {
+            Err(())
+        } else {
+            unsafe { CStr::from_ptr(value) }
+                .to_str()
+                .ok()
+                .map(|s| Self::try_from(s).ok())
+                .flatten()
+                .ok_or(())
+        }
+    }
+}
+
 impl Display for Space {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::write(
@@ -755,38 +772,8 @@ pub fn convert_space_ffi<T: DType, const N: usize>(
 where
     Channels<N>: ValidChannels,
 {
-    let from = unsafe {
-        if from.is_null() {
-            return 1;
-        } else {
-            if let Some(s) = CStr::from_ptr(from)
-                .to_str()
-                .ok()
-                .map(|s| Space::try_from(s).ok())
-                .flatten()
-            {
-                s
-            } else {
-                return 1;
-            }
-        }
-    };
-    let to = unsafe {
-        if to.is_null() {
-            return 2;
-        } else {
-            if let Some(s) = CStr::from_ptr(to)
-                .to_str()
-                .ok()
-                .map(|s| Space::try_from(s).ok())
-                .flatten()
-            {
-                s
-            } else {
-                return 2;
-            }
-        }
-    };
+    let Ok(from) = Space::try_from(from) else { return 1 };
+    let Ok(to) = Space::try_from(to) else { return 2 };
     let pixels = unsafe {
         if pixels.is_null() {
             return 3;
@@ -904,6 +891,25 @@ where
         convert_space(from, to, &mut col);
         col
     })
+}
+
+/// Same as `str2space` but with FFI types
+///
+/// Returns an N-length pointer to T on success or null on failure
+pub fn str2space_ffi<T: DType, const N: usize>(s: *const c_char, to: *const c_char) -> *const T
+where
+    Channels<N>: ValidChannels,
+{
+    if s.is_null() {
+        return core::ptr::null();
+    };
+    let Some(s) = unsafe { CStr::from_ptr(s) }.to_str().ok() else {
+        return core::ptr::null();
+    };
+    let Ok(to) = Space::try_from(to) else {
+        return core::ptr::null();
+    };
+    str2space::<T, N>(s, to).map_or(core::ptr::null(), |b| Box::into_raw(Box::new(b)).cast())
 }
 // ### Str2Col ### }}}
 
@@ -1316,20 +1322,37 @@ where
 // ### MONOTYPED EXTERNAL FUNCTIONS ### {{{
 
 #[no_mangle]
-extern "C" fn convert_space_ffi_3f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
+extern "C" fn convert_space_3f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
     convert_space_ffi::<_, 3>(from, to, pixels, len)
 }
 #[no_mangle]
-extern "C" fn convert_space_ffi_4f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
+extern "C" fn convert_space_4f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
     convert_space_ffi::<_, 4>(from, to, pixels, len)
 }
 #[no_mangle]
-extern "C" fn convert_space_ffi_3f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
+extern "C" fn convert_space_3f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
     convert_space_ffi::<_, 3>(from, to, pixels, len)
 }
 #[no_mangle]
-extern "C" fn convert_space_ffi_4f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
+extern "C" fn convert_space_4f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
     convert_space_ffi::<_, 4>(from, to, pixels, len)
+}
+
+#[no_mangle]
+extern "C" fn str2space_3f32(s: *const c_char, to: *const c_char) -> *const f32 {
+    str2space_ffi::<f32, 3>(s, to)
+}
+#[no_mangle]
+extern "C" fn str2space_4f32(s: *const c_char, to: *const c_char) -> *const f32 {
+    str2space_ffi::<f32, 4>(s, to)
+}
+#[no_mangle]
+extern "C" fn str2space_3f64(s: *const c_char, to: *const c_char) -> *const f64 {
+    str2space_ffi::<f64, 3>(s, to)
+}
+#[no_mangle]
+extern "C" fn str2space_4f64(s: *const c_char, to: *const c_char) -> *const f64 {
+    str2space_ffi::<f64, 4>(s, to)
 }
 
 macro_rules! cdef1 {
