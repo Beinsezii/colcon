@@ -2,8 +2,8 @@
 import ctypes
 from sys import platform
 
-cpixel = ctypes.c_float * 3
-cpixels = ctypes.POINTER(ctypes.c_float)
+c_float3 = ctypes.c_float * 3
+c_float_p = ctypes.POINTER(ctypes.c_float)
 
 if platform == "win32":
     LIBRARY = "colcon.dll"
@@ -17,31 +17,31 @@ colcon = ctypes.CDLL(f"./target/release/{LIBRARY}")
 colcon.convert_space_3f32.argtypes = [
     ctypes.c_char_p,
     ctypes.c_char_p,
-    cpixels,
+    c_float_p,
     ctypes.c_uint,
 ]
 colcon.convert_space_3f32.restype = ctypes.c_int32
 
 colcon.str2space_3f32.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-colcon.str2space_3f32.restype = cpixels  # No way to have a known size?
+colcon.str2space_3f32.restype = c_float_p  # No way to have a known size?
 
 # up
-colcon.srgb_to_hsv_3f32.argtypes = [cpixel]
-colcon.srgb_to_lrgb_3f32.argtypes = [cpixel]
-colcon.lrgb_to_xyz_3f32.argtypes = [cpixel]
-colcon.xyz_to_cielab_3f32.argtypes = [cpixel]
-colcon.xyz_to_oklab_3f32.argtypes = [cpixel]
-colcon.xyz_to_jzazbz_3f32.argtypes = [cpixel]
-colcon.lab_to_lch_3f32.argtypes = [cpixel]
+colcon.srgb_to_hsv_3f32.argtypes = [c_float3]
+colcon.srgb_to_lrgb_3f32.argtypes = [c_float3]
+colcon.lrgb_to_xyz_3f32.argtypes = [c_float3]
+colcon.xyz_to_cielab_3f32.argtypes = [c_float3]
+colcon.xyz_to_oklab_3f32.argtypes = [c_float3]
+colcon.xyz_to_jzazbz_3f32.argtypes = [c_float3]
+colcon.lab_to_lch_3f32.argtypes = [c_float3]
 
 # down
-colcon.lch_to_lab_3f32.argtypes = [cpixel]
-colcon.jzazbz_to_xyz_3f32.argtypes = [cpixel]
-colcon.oklab_to_xyz_3f32.argtypes = [cpixel]
-colcon.cielab_to_xyz_3f32.argtypes = [cpixel]
-colcon.xyz_to_lrgb_3f32.argtypes = [cpixel]
-colcon.lrgb_to_srgb_3f32.argtypes = [cpixel]
-colcon.srgb_to_hsv_3f32.argtypes = [cpixel]
+colcon.lch_to_lab_3f32.argtypes = [c_float3]
+colcon.jzazbz_to_xyz_3f32.argtypes = [c_float3]
+colcon.oklab_to_xyz_3f32.argtypes = [c_float3]
+colcon.cielab_to_xyz_3f32.argtypes = [c_float3]
+colcon.xyz_to_lrgb_3f32.argtypes = [c_float3]
+colcon.lrgb_to_srgb_3f32.argtypes = [c_float3]
+colcon.srgb_to_hsv_3f32.argtypes = [c_float3]
 
 # extra
 colcon.srgb_eotf_f32.argtypes = [ctypes.c_float]
@@ -56,8 +56,8 @@ colcon.pq_oetf_f32.argtypes = [ctypes.c_float]
 colcon.pq_oetf_f32.restype = ctypes.c_float
 colcon.pqz_oetf_f32.argtypes = [ctypes.c_float]
 colcon.pqz_oetf_f32.restype = ctypes.c_float
-colcon.hk_high2023_3f32.argtypes = [cpixel]
-colcon.hk_high2023_comp_3f32.argtypes = [cpixel]
+colcon.hk_high2023_3f32.argtypes = [c_float3]
+colcon.hk_high2023_comp_3f32.argtypes = [c_float3]
 
 # other dtypes
 colcon.srgb_to_lrgb_4f32.argtypes = [ctypes.c_float * 4]
@@ -86,60 +86,60 @@ def pixcmp(a, b):
 
 
 # up
-pix = cpixel(*SRGB)
+pix = c_float3(*SRGB)
 colcon.srgb_to_hsv_3f32(pix)
 pixcmp(list(pix), HSV)
 
-pix = cpixel(*SRGB)
+pix = c_float3(*SRGB)
 colcon.srgb_to_lrgb_3f32(pix)
 pixcmp(list(pix), LRGB)
 
-pix = cpixel(*LRGB)
+pix = c_float3(*LRGB)
 colcon.lrgb_to_xyz_3f32(pix)
 pixcmp(list(pix), XYZ)
 
-pix = cpixel(*XYZ)
+pix = c_float3(*XYZ)
 colcon.xyz_to_cielab_3f32(pix)
 pixcmp(list(pix), LAB)
 
-pix = cpixel(*XYZ)
+pix = c_float3(*XYZ)
 colcon.xyz_to_oklab_3f32(pix)
 pixcmp(list(pix), OKLAB)
 
-pix = cpixel(*XYZ)
+pix = c_float3(*XYZ)
 colcon.xyz_to_jzazbz_3f32(pix)
 pixcmp(list(pix), JZAZBZ)
 
-pix = cpixel(*LAB)
+pix = c_float3(*LAB)
 colcon.lab_to_lch_3f32(pix)
 pixcmp(list(pix), LCH)
 
 # down
-pix = cpixel(*LCH)
+pix = c_float3(*LCH)
 colcon.lch_to_lab_3f32(pix)
 pixcmp(list(pix), LAB)
 
-pix = cpixel(*LAB)
+pix = c_float3(*LAB)
 colcon.cielab_to_xyz_3f32(pix)
 pixcmp(list(pix), XYZ)
 
-pix = cpixel(*JZAZBZ)
+pix = c_float3(*JZAZBZ)
 colcon.jzazbz_to_xyz_3f32(pix)
 pixcmp(list(pix), XYZ)
 
-pix = cpixel(*OKLAB)
+pix = c_float3(*OKLAB)
 colcon.oklab_to_xyz_3f32(pix)
 pixcmp(list(pix), XYZ)
 
-pix = cpixel(*XYZ)
+pix = c_float3(*XYZ)
 colcon.xyz_to_lrgb_3f32(pix)
 pixcmp(list(pix), LRGB)
 
-pix = cpixel(*LRGB)
+pix = c_float3(*LRGB)
 colcon.lrgb_to_srgb_3f32(pix)
 pixcmp(list(pix), SRGB)
 
-pix = cpixel(*SRGB)
+pix = c_float3(*SRGB)
 colcon.srgb_to_hsv_3f32(pix)
 pixcmp(list(pix), HSV)
 
