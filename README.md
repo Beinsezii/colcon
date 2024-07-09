@@ -1,4 +1,4 @@
-# ColCon 0.10.0
+# ColCon 0.10.1
 Comprehensive colorspace conversions in Rust.
 
 ## Features
