@@ -37,7 +37,7 @@ macro_rules! bench_one_generic {
 
 macro_rules! bench_convert_generic {
     ($c: expr, $ps: expr, $pc: expr, $from: expr, $to:expr, $id:literal, $n:literal, $t:ty, $ts:literal) => {
-        $c.bench_function(concat!($id, "_", $n, $ts), |b| {
+        $c.bench_function(concat!($id, "_", $n, $ts, "_pixel"), |b| {
             b.iter(|| {
                 let mut pixels = $pc.clone();
                 black_box(
