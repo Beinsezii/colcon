@@ -11,8 +11,6 @@ Comprehensive colorspace conversions in Rust.
   * Accurate across a wide variety of tests, referencing [colour-science](https://github.com/colour-science/colour)
 
 ## MSRV
-The minimum supported Rust versions are as follows:
-
 |Colcon|Rust|
 |-|-|
 |0.10|1.65|
