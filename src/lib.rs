@@ -255,6 +255,39 @@ const JZAZBZ_P: f32 = 1.7 * PQEOTF_M2;
 
 // ### MATRICES ### {{{
 
+/// Matrix determinant using only constant math
+const fn det(m: [[f32; 3]; 3]) -> f32 {
+    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+}
+
+/// Matrix inversion using only constant math
+/// Panics if determinant is zero
+const fn inv(m: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
+    let d = det(m);
+    if d == 0.0 {
+        panic!("Matrix is singular and has no inverse")
+    }
+
+    [
+        [
+            (m[1][1] * m[2][2] - m[1][2] * m[2][1]) / d,
+            (m[0][2] * m[2][1] - m[0][1] * m[2][2]) / d,
+            (m[0][1] * m[1][2] - m[0][2] * m[1][1]) / d,
+        ],
+        [
+            (m[1][2] * m[2][0] - m[1][0] * m[2][2]) / d,
+            (m[0][0] * m[2][2] - m[0][2] * m[2][0]) / d,
+            (m[0][2] * m[1][0] - m[0][0] * m[1][2]) / d,
+        ],
+        [
+            (m[1][0] * m[2][1] - m[1][1] * m[2][0]) / d,
+            (m[0][1] * m[2][0] - m[0][0] * m[2][1]) / d,
+            (m[0][0] * m[1][1] - m[0][1] * m[1][0]) / d,
+        ],
+    ]
+}
+
 /// Its easier to write matricies visually then transpose them so they can be indexed per vector
 /// [X1, X2] -> [X1, Y1]
 /// [Y1, Y2]    [X2, Y2]
@@ -282,20 +315,6 @@ const XYZ65_MAT: [[f32; 3]; 3] = t([
     [0.0193, 0.1192, 0.9505],
 ]);
 
-// Original commonly used inverted array
-// const XYZ65_MAT_INV: [[f32; 3]; 3] = [
-//     [3.2406, -1.5372, -0.4986],
-//     [-0.9689, 1.8758, 0.0415],
-//     [0.0557, -0.2040, 1.0570],
-// ];
-
-// Higher precision invert using numpy. Helps with back conversions
-const XYZ65_MAT_INV: [[f32; 3]; 3] = t([
-    [3.2406254773, -1.5372079722, -0.4986285987],
-    [-0.9689307147, 1.8757560609, 0.0415175238],
-    [0.0557101204, -0.2040210506, 1.0569959423],
-]);
-
 // OKLAB
 // They appear to be provided already transposed for code in the blog post
 const OKLAB_M1: [[f32; 3]; 3] = [
@@ -307,16 +326,6 @@ const OKLAB_M2: [[f32; 3]; 3] = [
     [0.2104542553, 1.9779984951, 0.0259040371],
     [0.7936177850, -2.4285922050, 0.7827717662],
     [-0.0040720468, 0.4505937099, -0.8086757660],
-];
-const OKLAB_M1_INV: [[f32; 3]; 3] = [
-    [1.2270138511, -0.0405801784, -0.0763812845],
-    [-0.5577999807, 1.1122568696, -0.4214819784],
-    [0.281256149, -0.0716766787, 1.5861632204],
-];
-const OKLAB_M2_INV: [[f32; 3]; 3] = [
-    [0.9999999985, 1.0000000089, 1.0000000547],
-    [0.3963377922, -0.1055613423, -0.0894841821],
-    [0.2158037581, -0.0638541748, -1.2914855379],
 ];
 
 // JzAzBz
@@ -331,17 +340,6 @@ const JZAZBZ_M2: [[f32; 3]; 3] = t([
     [0.199076, 1.096799, -1.295875],
 ]);
 
-const JZAZBZ_M1_INV: [[f32; 3]; 3] = t([
-    [1.9242264358, -1.0047923126, 0.037651404],
-    [0.3503167621, 0.7264811939, -0.0653844229],
-    [-0.090982811, -0.3127282905, 1.5227665613],
-]);
-const JZAZBZ_M2_INV: [[f32; 3]; 3] = t([
-    [1., 0.1386050433, 0.0580473162],
-    [1., -0.1386050433, -0.0580473162],
-    [1., -0.096019242, -0.8118918961],
-]);
-
 // ICtCp
 const ICTCP_M1: [[f32; 3]; 3] = t([
     [1688. / 4096., 2146. / 4096., 262. / 4096.],
@@ -354,16 +352,6 @@ const ICTCP_M2: [[f32; 3]; 3] = t([
     [17933. / 4096., -17390. / 4096., -543. / 4096.],
 ]);
 
-const ICTCP_M1_INV: [[f32; 3]; 3] = t([
-    [3.4366066943, -2.5064521187, 0.0698454243],
-    [-0.7913295556, 1.9836004518, -0.1922708962],
-    [-0.0259498997, -0.0989137147, 1.1248636144],
-]);
-const ICTCP_M2_INV: [[f32; 3]; 3] = t([
-    [1., 0.008609037, 0.111029625],
-    [1., -0.008609037, -0.111029625],
-    [1., 0.5600313357, -0.320627175],
-]);
 // ### MATRICES ### }}}
 
 // ### TRANSFER FUNCTIONS ### {{{
@@ -1216,7 +1204,7 @@ pub fn xyz_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
 where
     Channels<N>: ValidChannels,
 {
-    [pixel[0], pixel[1], pixel[2]] = mm(XYZ65_MAT_INV, [pixel[0], pixel[1], pixel[2]])
+    [pixel[0], pixel[1], pixel[2]] = mm(inv(XYZ65_MAT), [pixel[0], pixel[1], pixel[2]])
 }
 
 /// Convert from CIE LAB to CIE XYZ.
@@ -1251,9 +1239,9 @@ pub fn oklab_to_xyz<T: DType, const N: usize>(pixel: &mut [T; N])
 where
     Channels<N>: ValidChannels,
 {
-    let mut lms = mm(OKLAB_M2_INV, [pixel[0], pixel[1], pixel[2]]);
+    let mut lms = mm(inv(OKLAB_M2), [pixel[0], pixel[1], pixel[2]]);
     lms.iter_mut().for_each(|c| *c = c.powi(3));
-    [pixel[0], pixel[1], pixel[2]] = mm(OKLAB_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = mm(inv(OKLAB_M1), lms);
 }
 
 /// Convert JzAzBz to CIE XYZ
@@ -1264,7 +1252,7 @@ where
     Channels<N>: ValidChannels,
 {
     let mut lms = mm(
-        JZAZBZ_M2_INV,
+        inv(JZAZBZ_M2),
         [
             (pixel[0] + JZAZBZ_D0.to_dt())
                 / (pixel[0] + JZAZBZ_D0.to_dt()).fma(T::ff32(-JZAZBZ_D), T::ff32(1.0 + JZAZBZ_D)),
@@ -1275,7 +1263,7 @@ where
 
     lms.iter_mut().for_each(|c| *c = pqz_eotf(*c));
 
-    [pixel[0], pixel[1], pixel[2]] = mm(JZAZBZ_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = mm(inv(JZAZBZ_M1), lms);
 
     pixel[0] = pixel[2].fma((JZAZBZ_B - 1.0).to_dt(), pixel[0]) / JZAZBZ_B.to_dt();
     pixel[1] = pixel[0].fma((JZAZBZ_G - 1.0).to_dt(), pixel[1]) / JZAZBZ_G.to_dt();
@@ -1297,10 +1285,10 @@ where
     Channels<N>: ValidChannels,
 {
     // lms prime
-    let mut lms = mm(ICTCP_M2_INV, [pixel[0], pixel[1], pixel[2]]);
+    let mut lms = mm(inv(ICTCP_M2), [pixel[0], pixel[1], pixel[2]]);
     // non-prime lms
     lms.iter_mut().for_each(|c| *c = pq_eotf(*c));
-    [pixel[0], pixel[1], pixel[2]] = mm(ICTCP_M1_INV, lms);
+    [pixel[0], pixel[1], pixel[2]] = mm(inv(ICTCP_M1), lms);
 }
 
 /// Retrieves an LAB based space from its cylindrical representation.

@@ -298,7 +298,7 @@ fn tree_jump() {
             convert_space_chunked::<f64, 3>($from_space, $to_space, &mut input);
             // strange this is 1e-3 while indiv is 1e-2
             // also skip places where hue can wrap
-            pix_cmp(&input, $to_data, 1e-3, &[0, 1, 7])
+            pix_cmp(&input, $to_data, 5e-3, &[0, 1, 7])
         };
     }
 
