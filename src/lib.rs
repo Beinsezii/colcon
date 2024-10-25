@@ -255,15 +255,27 @@ const JZAZBZ_P: f32 = 1.7 * PQEOTF_M2;
 
 // ### MATRICES ### {{{
 
+/// Const matrix upcast.
+/// What I wouldn't give for .map() to work
+const fn m32_to_m64(m: [[f32; 3]; 3]) -> [[f64; 3]; 3] {
+    [
+        [m[0][0] as f64, m[0][1] as f64, m[0][2] as f64],
+        [m[1][0] as f64, m[1][1] as f64, m[1][2] as f64],
+        [m[2][0] as f64, m[2][1] as f64, m[2][2] as f64],
+    ]
+}
+
 /// Matrix determinant using only constant math
-const fn det(m: [[f32; 3]; 3]) -> f32 {
+const fn det(m: [[f64; 3]; 3]) -> f64 {
     m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
         + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
 }
 
 /// Matrix inversion using only constant math
 /// Panics if determinant is zero
+/// Compute scale of f64
 const fn inv(m: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
+    let m = m32_to_m64(m);
     let d = det(m);
     if d == 0.0 {
         panic!("Matrix is singular and has no inverse")
@@ -271,19 +283,19 @@ const fn inv(m: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
 
     [
         [
-            (m[1][1] * m[2][2] - m[1][2] * m[2][1]) / d,
-            (m[0][2] * m[2][1] - m[0][1] * m[2][2]) / d,
-            (m[0][1] * m[1][2] - m[0][2] * m[1][1]) / d,
+            ((m[1][1] * m[2][2] - m[1][2] * m[2][1]) / d) as f32,
+            ((m[0][2] * m[2][1] - m[0][1] * m[2][2]) / d) as f32,
+            ((m[0][1] * m[1][2] - m[0][2] * m[1][1]) / d) as f32,
         ],
         [
-            (m[1][2] * m[2][0] - m[1][0] * m[2][2]) / d,
-            (m[0][0] * m[2][2] - m[0][2] * m[2][0]) / d,
-            (m[0][2] * m[1][0] - m[0][0] * m[1][2]) / d,
+            ((m[1][2] * m[2][0] - m[1][0] * m[2][2]) / d) as f32,
+            ((m[0][0] * m[2][2] - m[0][2] * m[2][0]) / d) as f32,
+            ((m[0][2] * m[1][0] - m[0][0] * m[1][2]) / d) as f32,
         ],
         [
-            (m[1][0] * m[2][1] - m[1][1] * m[2][0]) / d,
-            (m[0][1] * m[2][0] - m[0][0] * m[2][1]) / d,
-            (m[0][0] * m[1][1] - m[0][1] * m[1][0]) / d,
+            ((m[1][0] * m[2][1] - m[1][1] * m[2][0]) / d) as f32,
+            ((m[0][1] * m[2][0] - m[0][0] * m[2][1]) / d) as f32,
+            ((m[0][0] * m[1][1] - m[0][1] * m[1][0]) / d) as f32,
         ],
     ]
 }
