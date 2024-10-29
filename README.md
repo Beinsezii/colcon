@@ -19,6 +19,7 @@ Comprehensive colorspace conversions in Rust.
 ## Future
   * `std::simd` either after stabilization or as a nightly feature
   * More spaces?
+    * iCtCp has extant conversion functions but no `Space::` option yet as colour-science is inconsistent as reference
 
 ## F.A.Q.
 Question|Answer
