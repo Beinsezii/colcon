@@ -14,7 +14,7 @@ Comprehensive colorspace conversions in Rust.
 |Colcon|Rust|
 |-|-|
 |0.10|1.65|
-|`main`|1.82|
+|`main`|1.85|
 
 ## Future
   * `std::simd` either after stabilization or as a nightly feature
