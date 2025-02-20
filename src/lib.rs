@@ -1061,7 +1061,7 @@ where
 
 // Disabled for now as all the papers are paywalled
 // /// Convert CIE XYZ to CAM16-UCS
-// #[no_mangle]
+// #[unsafe(no_mangle)]
 // pub extern "C" fn xyz_to_cam16ucs(pixel: &mut [f32; 3]) {
 
 // }
@@ -1283,7 +1283,7 @@ where
 
 // Disabled for now as all the papers are paywalled
 // /// Convert CAM16-UCS to CIE XYZ
-// #[no_mangle]
+// #[unsafe(no_mangle)]
 // pub extern "C" fn cam16ucs_to_xyz(pixel: &mut [f32; 3]) {
 
 // }
@@ -1291,7 +1291,7 @@ where
 /// Convert ICtCp to LRGB. Unvalidated, WIP
 ///
 /// <https://www.itu.int/rec/R-REC-BT.2100/en>
-// #[no_mangle]
+// #[unsafe(no_mangle)]
 pub fn _ictcp_to_lrgb<T: DType, const N: usize>(pixel: &mut [T; N])
 where
     Channels<N>: ValidChannels,
@@ -1321,47 +1321,47 @@ where
 
 // ### MONOTYPED EXTERNAL FUNCTIONS ### {{{
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn convert_space_3f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
     convert_space_ffi::<_, 3>(from, to, pixels, len)
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn convert_space_4f32(from: *const c_char, to: *const c_char, pixels: *mut f32, len: usize) -> i32 {
     convert_space_ffi::<_, 4>(from, to, pixels, len)
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn convert_space_3f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
     convert_space_ffi::<_, 3>(from, to, pixels, len)
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn convert_space_4f64(from: *const c_char, to: *const c_char, pixels: *mut f64, len: usize) -> i32 {
     convert_space_ffi::<_, 4>(from, to, pixels, len)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn str2space_3f32(s: *const c_char, to: *const c_char) -> *const f32 {
     str2space_ffi::<f32, 3>(s, to)
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn str2space_4f32(s: *const c_char, to: *const c_char) -> *const f32 {
     str2space_ffi::<f32, 4>(s, to)
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn str2space_3f64(s: *const c_char, to: *const c_char) -> *const f64 {
     str2space_ffi::<f64, 3>(s, to)
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn str2space_4f64(s: *const c_char, to: *const c_char) -> *const f64 {
     str2space_ffi::<f64, 4>(s, to)
 }
 
 macro_rules! cdef1 {
     ($base:ident, $f32:ident, $f64:ident) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f32(value: f32) -> f32 {
             $base(value)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f64(value: f64) -> f64 {
             $base(value)
         }
@@ -1370,19 +1370,19 @@ macro_rules! cdef1 {
 
 macro_rules! cdef3 {
     ($base:ident, $f32_3:ident, $f64_3:ident, $f32_4:ident, $f64_4:ident) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f32_3(pixel: &mut [f32; 3]) {
             $base(pixel)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f64_3(pixel: &mut [f64; 3]) {
             $base(pixel)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f32_4(pixel: &mut [f32; 4]) {
             $base(pixel)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f64_4(pixel: &mut [f64; 4]) {
             $base(pixel)
         }
@@ -1391,19 +1391,19 @@ macro_rules! cdef3 {
 
 macro_rules! cdef31 {
     ($base:ident, $f32_3:ident, $f64_3:ident, $f32_4:ident, $f64_4:ident) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f32_3(pixel: &[f32; 3]) -> f32 {
             $base(pixel)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f64_3(pixel: &[f64; 3]) -> f64 {
             $base(pixel)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f32_4(pixel: &[f32; 4]) -> f32 {
             $base(pixel)
         }
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn $f64_4(pixel: &[f64; 4]) -> f64 {
             $base(pixel)
         }
